@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"strconv"
 	"strings"
+	"sync"
 
 	dom "mdata/internal/domain"
 	log "mdata/internal/logging"
@@ -65,7 +67,7 @@ func handleZupWriteAllUsers(ins *repository.Instance, data []byte) (string, erro
 	}
 
 	for i, v := range gettingUsers.Users {
-		if i%300 == 0 {
+		if i%700 == 0 {
 			log.Info("i = %d", i)
 		}
 		{
@@ -88,7 +90,7 @@ func handleZupWriteAllUsers(ins *repository.Instance, data []byte) (string, erro
 	return strAnswer, nil
 }
 
-func getUserEmailByEmployeeTabNo(insLdapConn *repository.LdapConn, user dom.User) (string, error) {
+func getUserEmailByEmployeeTabNo_old(insLdapConn *repository.LdapConn, user dom.User) (string, error) {
 
 	var curEmail string
 	var err error
@@ -116,6 +118,67 @@ func getUserEmailByEmployeeTabNo(insLdapConn *repository.LdapConn, user dom.User
 		}
 	}
 	return curEmail, nil
+}
+
+func getUserEmailByEmployeeTabNo(insLdapConn *repository.LdapConn, user dom.User) (string, error) {
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var resEmail string
+	//getEmail := make(chan string, 5)
+
+	fn := func() func(context.Context, string) {
+		return func(ctx context.Context, searchParam string) {
+			//for {
+			select {
+			case <-ctx.Done():
+				//log.Info("I'm canceled! (searchParam = %s)", searchParam)
+				return
+			default:
+				curEmail, err := insLdapConn.GetUserEmailByID(searchParam)
+				if err != nil {
+					log.Error("handlers.getUserEmailByEmployeeTabNo getting email error: %v, for user %v, with userID %v", err, user.UserName, user.UserID)
+				}
+				// if curEmail == "" {
+				// 	time.Sleep(5 * time.Second)
+				// }
+				if curEmail != "" {
+					//getEmail <- curEmail
+					resEmail = curEmail
+				}
+				//log.Info("Param = %s, curEmail = %s", searchParam, curEmail)
+			}
+			//}
+		}
+	}()
+
+	var wg sync.WaitGroup
+	for _, empl := range user.Employees {
+		wg.Add(1)
+		go func(employeeId string) {
+			defer wg.Done()
+			fn(ctx, employeeId) // поиск по коду сотрудника
+		}(empl.EmployeeId)
+		wg.Add(1)
+		go func(userID string) {
+			defer wg.Done()
+			fn(ctx, strings.TrimSpace(userID)) // поиск по коду физ. лица
+		}(user.UserID)
+		wg.Add(1)
+		go func(emplTabNumber string) {
+			defer wg.Done()
+			fn(ctx, emplTabNumber) // поиск по "личному номеру"
+		}(empl.EmpTabNumber)
+	}
+
+	//resEmail := <-getEmail
+	//cancel()
+
+	wg.Wait()
+	//log.Info("main = %s", resEmail)
+
+	return resEmail, nil
 }
 
 func getUserEmailByUserID(user dom.User) (string, error) {

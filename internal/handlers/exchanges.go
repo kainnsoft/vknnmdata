@@ -16,7 +16,7 @@ func registerToExchange(ins *repository.Instance, exch *dom.ExchangeStruct) erro
 	return nil
 }
 
-func getUsersArrayWithEmailToPUTQuery(ins *repository.Instance, reasonID int) ([]byte, *map[int]int, error) {
+func getUsersArrayWithEmailToPUTQuery(ins *repository.Instance, reasonID int) ([]byte, *map[int]int, []dom.User, error) {
 
 	var sliceOfByte []byte
 	ptrEmptyExchMap := &map[int]int{} // в мапе получаем id отправляемой строки и attempt_count
@@ -24,10 +24,10 @@ func getUsersArrayWithEmailToPUTQuery(ins *repository.Instance, reasonID int) ([
 	usersToExchangeSlice, ptrExchMap, err := ins.GetAllUsersToExchange(reasonID)
 	if err != nil {
 		log.Error("getUsersArrayWithEmailToPUTQuery", err)
-		return sliceOfByte, ptrEmptyExchMap, err // пустой
+		return sliceOfByte, ptrEmptyExchMap, usersToExchangeSlice, err // пустой
 	}
 	if len(usersToExchangeSlice) == 0 {
-		return sliceOfByte, ptrEmptyExchMap, nil // пустой
+		return sliceOfByte, ptrEmptyExchMap, usersToExchangeSlice, nil // пустой
 	}
 
 	usersToExchangeArray := dom.AGUsers{}
@@ -36,37 +36,10 @@ func getUsersArrayWithEmailToPUTQuery(ins *repository.Instance, reasonID int) ([
 	sliceOfByte, err = json.Marshal(usersToExchangeArray)
 	if err != nil {
 		log.Error("marshal usersToExchangeArray error", err)
-		return sliceOfByte, ptrEmptyExchMap, err // пустой
+		return sliceOfByte, ptrEmptyExchMap, usersToExchangeSlice, err // пустой
 	}
 
-	return sliceOfByte, ptrExchMap, nil
-}
-
-// не использовать - однопоточно
-func putRequestEromZupLoading_withoutGoroutines(ins *repository.Instance, exMap *map[int]int, errorStr string) {
-	for k, v := range *exMap {
-		err := ins.SetExchangeStatus(k, v, errorStr) // TODO переписать на горутины
-		if err != nil {
-			log.Error("handlers.putRequestFromZupLoading error: %v", err)
-			// TODO   писать в Redis и пробовать через 20 мин (например)
-		}
-	}
-}
-
-// не использовать - raice condition (TODO организовать через Mutex)
-func putRequestEromZupLoading_raceCondition(ins *repository.Instance, exMap *map[int]int, errorStr string) {
-	for k, v := range *exMap {
-		k, v, errorStr := k, v, errorStr
-		go func() {
-			err := ins.SetExchangeStatus(k, v, errorStr)
-			if err != nil {
-				log.Error("handlers.putRequestFromZupLoading error: при попытке записи в БД статуса 'email to ZUP' для ex_id = %v получена ошибка: %v ", k, err)
-				return
-				// TODO   писать в Redis и пробовать через 20 мин (например)
-			}
-			log.Info("handlers.putRequestFromZupLoading: статус попытки записи email успешно записан в БД для ex_id = %v", k)
-		}()
-	}
+	return sliceOfByte, ptrExchMap, usersToExchangeSlice, nil
 }
 
 func putRequestFromZupLoading(ins *repository.Instance, exMap *map[int]int, errorStr string) {

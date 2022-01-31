@@ -229,8 +229,8 @@ func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 		defer utils.SendEmailToBuch(ins)
 
 		// получаем (формируем) весь массив, который будем передавать
-		reasonID := 1                                                                       // для идентификации того, что нам нужны user-ы для выгрузки именно в 1С:ЗУП
-		jsonSliceOfByte, ptrExchMap, err := getUsersArrayWithEmailToPUTQuery(ins, reasonID) // в мапе (ptrExchMap) получаем id отправляемой строки и attempt_count для понимания, куда (в какую строку) записывать ошибку или 'ok'
+		reasonID := 1                                                                          // для идентификации того, что нам нужны user-ы для выгрузки именно в 1С:ЗУП
+		jsonSliceOfByte, ptrExchMap, _, err := getUsersArrayWithEmailToPUTQuery(ins, reasonID) // в мапе (ptrExchMap) получаем id отправляемой строки и attempt_count для понимания, куда (в какую строку) записывать ошибку или 'ok'
 		if err != nil {
 			errorString := "rest handlers.RestPutAllUsersWithEmailToZup: при выборке данных к обмену произошла ошибка: " + err.Error()
 			log.Info(errorString)
@@ -314,18 +314,27 @@ func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 // Отправляем в 1С:CreateUser даные новых сотрудников (users) для создания для них пользователей в 1С
 func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var errorString string
+		var usersToExchangeSlice []dom.User // для формирования письма
+
+		// (после успешной/не успешной загрузки в 1С:CreateUser), отправим log админам 1С:
+		defer func() {
+			if len(usersToExchangeSlice) > 0 {
+				go utils.SendEmailTo1CAdmins(ins, usersToExchangeSlice, errorString)
+			}
+		}()
 
 		// получаем (формируем) весь массив, который будем передавать
-		reasonID := 2                                                                       // для идентификации того, что нам нужны user-ы для выгрузки именно в 1С:CreateUser для создания новых
-		jsonSliceOfByte, ptrExchMap, err := getUsersArrayWithEmailToPUTQuery(ins, reasonID) // в мапе (ptrExchMap) получаем id отправляемой строки и attempt_count для понимания, куда (в какую строку) записывать ошибку или 'ok'
+		reasonID := 2                                                                                             // для идентификации того, что нам нужны user-ы для выгрузки именно в 1С:CreateUser для создания новых
+		jsonSliceOfByte, ptrExchMap, usersToExchangeSlice, err := getUsersArrayWithEmailToPUTQuery(ins, reasonID) // в мапе (ptrExchMap) получаем id отправляемой строки и attempt_count для понимания, куда (в какую строку) записывать ошибку или 'ok'
 		if err != nil {
-			errorString := "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: при выборке данных к обмену произошла ошибка: " + err.Error()
+			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: при выборке данных к обмену произошла ошибка: " + err.Error()
 			log.Info(errorString)
 			http.Error(w, errorString, 500)
 			return // нет данных к обмену
 		}
 		if len(jsonSliceOfByte) == 0 {
-			errorString := "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: нет данных к выгрузке в 1С:CreateUser"
+			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: нет данных к выгрузке в 1С:CreateUser"
 			log.Info(errorString)
 			http.Error(w, errorString, http.StatusNoContent)
 			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 204")
@@ -335,7 +344,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 		// готовим запрос в 1С:CreateUser
 		req, err := http.NewRequest("PUT", putTo1CCreateUserAdress, bytes.NewBuffer(jsonSliceOfByte))
 		if err != nil {
-			errorString := "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: http.NewRequest error: " + err.Error()
+			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: http.NewRequest error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, 400)
 			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 400")
@@ -348,7 +357,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 		client := &http.Client{} // TODO  добавить Timeout
 		resp, err := client.Do(req)
 		if err != nil {
-			errorString := "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts client.Do(req) error: " + err.Error()
+			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts client.Do(req) error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, http.StatusForbidden) // 403
 			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 403")
@@ -359,7 +368,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 		// читаем ответ
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			errorString := "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts handle ioutil.ReadAll(resp.Body) error: " + err.Error()
+			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts handle ioutil.ReadAll(resp.Body) error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, http.StatusForbidden) // 403
 			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 403")
@@ -368,7 +377,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 
 		// при возникновении ошибок
 		if resp.StatusCode == 404 {
-			errorString := "rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: 1C:CreateUser is not available: 404 Not found"
+			errorString = "rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: 1C:CreateUser is not available: 404 Not found"
 			log.Error(errorString)
 			//w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("1C:CreateUser is not available"))
@@ -376,7 +385,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			go putRequestFromZupLoading(ins, ptrExchMap, errorString)
 			return
 		} else if resp.StatusCode == 500 {
-			errorString := "rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: 500 Internal server error"
+			errorString = "rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: 500 Internal server error"
 			log.Error(errorString)
 			//w.WriteHeader(http.StatusInternalServerError)
 			//w.Write([]byte("500 Internal server error"))
@@ -385,19 +394,16 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			return
 		} else if resp.StatusCode != 200 {
 			respError := fmt.Errorf("rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: %v error descr: %v", resp.Status, string(body))
-			log.Error(respError.Error())
+			errorString = respError.Error()
+			log.Error(errorString)
 			http.Error(w, resp.Status, resp.StatusCode)
-			go putRequestFromZupLoading(ins, ptrExchMap, respError.Error())
+			go putRequestFromZupLoading(ins, ptrExchMap, errorString)
 			return
 		}
 
 		log.Info("rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: %d users have sent to 1C:CreateUser for accountings; resp.StatusCode: %d", len(jsonSliceOfByte), resp.StatusCode)
 		// если до сюда дошли, то обмен состоялся. Запишем это в табл. "exchanges"
 		go putRequestFromZupLoading(ins, ptrExchMap, "200(ok)")
-
-		// (после успешной - ??? загрузки в 1С:CreateUser), отправим log-файл админам 1С:
-		defer utils.SendEmailTo1CAdmins(ins)
-
 	}
 }
 

@@ -21,7 +21,7 @@ var ins *repository.Instance // db
 var pool *pgxpool.Pool
 
 func createDBConnPool() *pgxpool.Pool {
-	//Задаем параметры для подключения к БД (в прошлом задании мы поднимали контейнер с этими credentials)
+	//Задаем параметры для подключения к БД
 	cfg := &domain.Config{}
 	cfg.DBHost = repository.ReadConfig("db.host")
 	cfg.DBUsername = repository.ReadConfig("db.username")
@@ -72,7 +72,7 @@ func main() {
 	// ping - метод. Получим всех пользователей 1С:ЗУП
 	http.HandleFunc("/from-zup/ping/AllUsers/", handlers.PingFromZmupAllUsers)
 
-	// Запишем в БД всех user-ов из ЗУП-а, по пути получив их email из AD (daily task)
+	// Запишем в БД всех user-ов из ЗУП-а, по пути получив их email из AD                     (daily task)
 	http.HandleFunc("/db/from-zup/write/all-users/", handlers.RestHandleZupWriteAllUsers(ins))
 
 	// Debug-method. Запишем в БД одного user-а из запроса (из Postman-а), по пути получив его email из AD

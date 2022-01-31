@@ -17,22 +17,18 @@ func SendEmailToBuch(ins *repository.Instance) error {
 	t := time.Now()
 	if t.Weekday() == time.Friday {
 		// адресаты
-		// recipients := []string{"akabanov@VODOKANAL-NN.RU",
-		// 	"spotapova@VODOKANAL-NN.RU",
-		// 	"sgrushenko@VODOKANAL-NN.RU",
-		// 	"abuldin@VODOKANAL-NN.RU"}
-		recipients, err := ins.GetUserEmailsByNotificationsTypes(2) // 'В бухгалтерию о загрузке email-ов в 1С:ЗУП'
+		recipients, err := ins.GetUserEmailsByNotificationsTypes(2) // notification_type = 'В бухгалтерию о загрузке email-ов в 1С:ЗУП', id = 2
 		if err != nil {
 			return err
 		}
 
 		admins, err := ins.GetUserEmailsByNotificationsTypes(1)
 		if err != nil {
-			log.Error("bd_notifications handlers.SendEmailToBuch GetBccAdmin error: %v", err)
+			log.Error("notifications handlers.SendEmailToBuch GetBccAdmin error: %v", err)
 		}
 		bccAdmin := admins[0]
 		if bccAdmin == "" {
-			log.Error("bd_notifications handlers.SendEmailToBuch GetBccAdmin error: no bccAdmin", err)
+			log.Error("notifications handlers.SendEmailToBuch GetBccAdmin error: no bccAdmin", err)
 		}
 
 		// тема
@@ -58,9 +54,44 @@ func SendEmailToBuch(ins *repository.Instance) error {
 }
 
 // Отправка сообщений админам 1С о необходимости промониторить работу по автоматическому созданию пользователей:
-func SendEmailTo1CAdmins(ins *repository.Instance) error {
-	// TODO
-	return nil
+func SendEmailTo1CAdmins(ins *repository.Instance, usersToExchangeSlice []domain.User, strInErr string) {
+	// адресаты
+	recipients, err := ins.GetUserEmailsByNotificationsTypes(3) // notification_type = 'В 1C:CreateUser о новом user-е с email', id = 3
+	if err != nil {
+		log.Error("notifications handlers.SendEmailTo1CAdmins GetRecipients error: %v", err)
+	}
+	// скрытая копия
+	admins, err := ins.GetUserEmailsByNotificationsTypes(1)
+	if err != nil {
+		log.Error("notifications handlers.SendEmailTo1CAdmins GetBccAdmin error: %v", err)
+	}
+	bccAdmin := admins[0]
+	if bccAdmin == "" {
+		log.Error("notifications handlers.SendEmailTo1CAdmins GetBccAdmin error: no bccAdmin: %v", err)
+	}
+
+	// тема
+	subject := "В 1C:CreateUser о новом user-е с email"
+	// тело
+	body := "Попытка выгрузить следующих пользователей для автоматического создания \n"
+	for _, user := range usersToExchangeSlice {
+		body = body + "-------------------------- \n"
+		body = body + "        " + user.UserName + " (код = " + user.UserID + ")" + " \r\n"
+	}
+	body = body + "-------------------------- \n"
+	if strInErr == "" {
+		body = body + "Завершилась успехом \n"
+	} else {
+		body = body + "Завершилась с ошибкой: \n"
+		body = body + strInErr + "\n"
+	}
+	// отправка
+	err = repository.SendMailToRecipient(recipients, bccAdmin, subject, body, "")
+	if err != nil {
+		log.Error("notifications handlers.SendEmailTo1CAdmins SendMailToRecipient error: %v", err)
+	}
+
+	log.Info("notifications handlers.SendEmailTo1CAdmins OK")
 }
 
 //
