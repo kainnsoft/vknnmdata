@@ -17,6 +17,7 @@ import (
 
 //***************************************************************************************
 // Для работы с БД
+const queryTimeout = 100
 
 //Функция для более удобного создания строки подключения к БД
 func NewPoolConfig(cfg *domain.Config) (*pgxpool.Config, error) {
@@ -39,7 +40,9 @@ func NewPoolConfig(cfg *domain.Config) (*pgxpool.Config, error) {
 
 //Функция-обертка для создания подключения с помощью пула
 func NewConnection(poolConfig *pgxpool.Config) (*pgxpool.Pool, error) {
-	conn, err := pgxpool.ConnectConfig(context.Background(), poolConfig)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, err := pgxpool.ConnectConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +58,9 @@ type Instance struct {
 
 func DBPing(i *Instance) (string, error) { // pool *pgxpool.Pool
 	// Func "Exec" performs query to DB
-	_, err := i.Db.Exec(context.Background(), "-);")
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout*time.Millisecond)
+	defer cancel()
+	_, err := i.Db.Exec(ctx, ";")
 	if err != nil {
 		return "", fmt.Errorf("DB ping error: %v", err)
 	}
@@ -161,12 +166,14 @@ func (i *Instance) GetAllUsersWithEmail() ([]domain.UserWithEmail, error) {
 
 // вернём всех пользователей (физ.лиц) и уволенные тоже:
 func (i *Instance) GetAllUsersFromDB() ([]domain.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout*time.Millisecond)
+	defer cancel()
 
 	const usrs_query = "select user_guid, user_name, user_id, user_birthday, email from users;"
 
 	allUsersSlice := make([]domain.User, 0, 5000)
 
-	rows, err := i.Db.Query(context.Background(), usrs_query)
+	rows, err := i.Db.Query(ctx, usrs_query)
 	if err == pgx.ErrNoRows {
 		fmt.Println("No rows")
 		return allUsersSlice, err
@@ -301,12 +308,14 @@ func handlRowsAllAttributes(rows pgx.Rows) []domain.User {
 
 // вернём всех работающих пользователей (физ.лиц) все атрибуты:
 func (i *Instance) GetAllActualUsersAllAttributes() ([]domain.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout*time.Millisecond)
+	defer cancel()
 
 	const usrs_query = commonQueryAllAttributes + " where state_descr ilike $1;"
 
 	allUsersSlice := make([]domain.User, 0)
 
-	rows, err := i.Db.Query(context.Background(), usrs_query, "%Работ%")
+	rows, err := i.Db.Query(ctx, usrs_query, "%Работ%")
 	if err == pgx.ErrNoRows {
 		fmt.Println("No rows")
 		return allUsersSlice, err
@@ -1137,9 +1146,8 @@ func (i *Instance) AddToExchange(exch *domain.ExchangeStruct) (string, error) {
 // метод основан на том, что в поле exch.rowdata не произвольные данные, а user_guid
 func (i *Instance) GetAllUsersToExchange(reasonID int) ([]domain.User, *map[int]int, error) {
 
-	// const query = "select user_guid, user_name, user_id, email from users " +
-	// 	"              where user_guid in " +
-	// 	"                  (select cast(rowdata as uuid) from exchanges where r_id=1); "
+	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
+	defer cancel()
 
 	mapExID := map[int]int{} // id строк, в которые записывать ответ из 1С (для обработки ошибок)
 	// в мапу пишем id отправляемой строки и attempt_count
@@ -1152,7 +1160,7 @@ func (i *Instance) GetAllUsersToExchange(reasonID int) ([]domain.User, *map[int]
 
 	usersSlice := make([]domain.User, 0)
 
-	rows, err := i.Db.Query(context.Background(), query, reasonID)
+	rows, err := i.Db.Query(ctx, query, reasonID)
 	if err == pgx.ErrNoRows {
 		fmt.Println("No rows")
 		return usersSlice, &mapExID, err

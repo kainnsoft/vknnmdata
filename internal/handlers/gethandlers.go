@@ -90,103 +90,43 @@ func handleZupWriteAllUsers(ins *repository.Instance, data []byte) (string, erro
 	return strAnswer, nil
 }
 
-func getUserEmailByEmployeeTabNo_old(insLdapConn *repository.LdapConn, user dom.User) (string, error) {
-
-	var curEmail string
-	var err error
-	for _, empl := range user.Employees { ///  TODO - всё переписать: искать все три case - а параллельно
-		curEmail, err = insLdapConn.GetUserEmailByID(strings.TrimSpace(empl.EmployeeId)) // поиск по коду сотрудника
-		if err != nil {
-			return "", fmt.Errorf("handlers.getUserEmailByEmployeeTabNo getting email error: %v, for user %v, with userID %v and Empl.TabNumber %s", err, user.UserName, user.UserID, empl.EmpTabNumber)
-		}
-		if curEmail != "" {
-			break
-		}
-		curEmail, err = insLdapConn.GetUserEmailByID(strings.TrimSpace(user.UserID)) // поиск по коду физ. лица
-		if err != nil {
-			return "", fmt.Errorf("handlers.getUserEmailByEmployeeTabNo getting email error: %v, for user %v, with userID %v and Empl.TabNumber %s", err, user.UserName, user.UserID, empl.EmpTabNumber)
-		}
-		if curEmail != "" {
-			break
-		}
-		curEmail, err = insLdapConn.GetUserEmailByID(strings.TrimSpace(empl.EmpTabNumber)) // поиск по "личному номеру"
-		if err != nil {
-			return "", fmt.Errorf("handlers.getUserEmailByEmployeeTabNo getting email error: %v, for user %v, with userID %v and Empl.TabNumber %s", err, user.UserName, user.UserID, empl.EmpTabNumber)
-		}
-		if curEmail != "" {
-			break
-		}
-	}
-	return curEmail, nil
-}
-
 func getUserEmailByEmployeeTabNo(insLdapConn *repository.LdapConn, user dom.User) (string, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	var resEmail string
-	//getEmail := make(chan string, 5)
+	var wg sync.WaitGroup
 
 	fn := func() func(context.Context, string) {
 		return func(ctx context.Context, searchParam string) {
-			//for {
-			select {
-			case <-ctx.Done():
-				//log.Info("I'm canceled! (searchParam = %s)", searchParam)
+			defer func() {
+				wg.Done()
+			}()
+			curEmail, err := insLdapConn.GetUserEmailByID(searchParam)
+			if err != nil {
+				log.Error("handlers.getUserEmailByEmployeeTabNo getting email error: %v, for user %v, with userID %v and searchParam %v", err, user.UserName, user.UserID, searchParam)
 				return
-			default:
-				curEmail, err := insLdapConn.GetUserEmailByID(searchParam)
-				if err != nil {
-					log.Error("handlers.getUserEmailByEmployeeTabNo getting email error: %v, for user %v, with userID %v", err, user.UserName, user.UserID)
-				}
-				// if curEmail == "" {
-				// 	time.Sleep(5 * time.Second)
-				// }
-				if curEmail != "" {
-					//getEmail <- curEmail
-					resEmail = curEmail
-				}
-				//log.Info("Param = %s, curEmail = %s", searchParam, curEmail)
 			}
-			//}
+			if curEmail != "" {
+				resEmail = curEmail
+			}
 		}
 	}()
 
-	var wg sync.WaitGroup
 	for _, empl := range user.Employees {
 		wg.Add(1)
-		go func(employeeId string) {
-			defer wg.Done()
-			fn(ctx, employeeId) // поиск по коду сотрудника
-		}(empl.EmployeeId)
+		go fn(ctx, strings.TrimSpace(user.UserID)) // поиск по коду физ. лица
 		wg.Add(1)
-		go func(userID string) {
-			defer wg.Done()
-			fn(ctx, strings.TrimSpace(userID)) // поиск по коду физ. лица
-		}(user.UserID)
-		wg.Add(1)
-		go func(emplTabNumber string) {
-			defer wg.Done()
-			fn(ctx, emplTabNumber) // поиск по "личному номеру"
-		}(empl.EmpTabNumber)
+		go fn(ctx, empl.EmployeeId) // поиск по коду сотрудника
+		// wg.Add(1)
+		// go fn(ctx, empl.EmpTabNumber) // поиск по "личному номеру"
+
+		if resEmail != "" { // когда несколько Employees у user - а, и resEmail уже нашли
+			break
+		}
 	}
-
-	//resEmail := <-getEmail
-	//cancel()
-
 	wg.Wait()
-	//log.Info("main = %s", resEmail)
 
 	return resEmail, nil
-}
-
-func getUserEmailByUserID(user dom.User) (string, error) {
-	var curEmail string
-	var err error
-	curEmail, err = insLdapConn.GetUserEmailByID(strings.TrimSpace(user.UserID))
-	if err != nil {
-		return "", fmt.Errorf("handlers.getUserEmailByUserID getting email error: %v, for user %v, with userID %v", err, user.UserName, user.UserID)
-	}
-	return curEmail, nil
 }

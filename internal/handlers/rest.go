@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	dom "mdata/internal/domain"
 	log "mdata/internal/logging"
@@ -18,8 +19,10 @@ const api1CZupPing = "http://md:masteR+Data2021@srv-web1:8086/EmployeeData/hs/VK
 const api1CZupAllEmployees = "http://md:masteR+Data2021@srv-web1:8086/EmployeeData/hs/VK_EmployeeData/get_all_users"
 
 const putTo1CZupEmailAdress = "http://md:masteR+Data2021@srv-web1:8086/mdzup-load/hs/mdzup-load-email/put-email"
-const putTo1CCreateUserAdress = "" //"http://md:masteR+Data2021@srv-web1:8086/mdzup-load/hs/mdzup-load-email/put-email"  //  TODO
+const putTo1CCreateUserAdress = "http://srv-web1:8086/mdzup-load/hs/mdzup-load-email/put-email" //  TODO
 const api1CZupAllDepartaments = "http://md:masteR+Data2021@srv-web1:8086/EmployeeData/hs/VK_EmployeeData/get_departaments"
+
+const client1CTimeout = 20
 
 //*******************************************
 // ping - метод. Доступность сервиса MD
@@ -32,15 +35,22 @@ func PingMasterData(w http.ResponseWriter, r *http.Request) {
 //*******************************************
 // ping - метод. Получим доступность базы 1С:ЗУП
 func PingZup(w http.ResponseWriter, r *http.Request) {
+	// ctx, cancel := context.WithTimeout(r.Context(), 10*time.Millisecond)
+	// defer cancel()
+	// req, err := http.NewRequestWithContext(ctx, http.MethodGet, api1CZupPing, nil)
 	req, err := http.NewRequest(http.MethodGet, api1CZupPing, nil)
 	if err != nil {
-		log.Error("rest: handlers.PingZup: no request:", err)
+		log.Error("rest: handlers.PingZup: no request: %v", err)
 	}
 
-	client := http.DefaultClient
+	client := http.Client{Timeout: client1CTimeout * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error("rest: handlers.PingZup: no http client", err)
+		strError := fmt.Sprintf("rest: handlers.PingZup: no http client: %v", err)
+		log.Error(strError)
+		w.WriteHeader(http.StatusNotFound) //StatusRequestTimeout
+		w.Write([]byte("1C:ZUP is not available: " + strError))
+		return
 	}
 	defer resp.Body.Close()
 
@@ -81,10 +91,14 @@ func PingFromZmupAllUsers(w http.ResponseWriter, r *http.Request) {
 		log.Error("rest: handlers.PingEromZupAllEmployees: no request: ", err)
 	}
 	// create client, do request and get response
-	client := http.DefaultClient
+	client := http.Client{Timeout: client1CTimeout * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error("rest: handlers.PingEromZupAllEmployees: no http client: ", err)
+		strError := fmt.Sprintf("rest: handlers.PingEromZupAllEmployees: no http client: %v", err)
+		log.Error(strError)
+		w.WriteHeader(http.StatusNotFound) //StatusRequestTimeout
+		w.Write([]byte("1C:ZUP is not available: " + strError))
+		return
 	}
 	defer resp.Body.Close()
 
@@ -115,10 +129,14 @@ func RestHandleZupWriteAllUsers(ins *repository.Instance) http.HandlerFunc {
 			log.Error("handlers.RestHandleZupWriteAllUsers: no request: %v", err)
 		}
 		// create client, do request and get response with user data from 1C:ZUP
-		client := http.DefaultClient
+		client := http.Client{Timeout: client1CTimeout * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Error("handlers.RestHandleZupWriteAllUsers: no http client: %v", err)
+			strError := fmt.Sprintf("rest: handlers.RestHandleZupWriteAllUsers: no http client: %v", err)
+			log.Error(strError)
+			w.WriteHeader(http.StatusNotFound) //StatusRequestTimeout
+			w.Write([]byte("1C:ZUP is not available: " + strError))
+			return
 		}
 		defer resp.Body.Close()
 
@@ -180,7 +198,7 @@ func RestPutOneUserEmailToZup(w http.ResponseWriter, r *http.Request) {
 	sliceUsers.Users = append(sliceUsers.Users, user)
 
 	// initialize http client
-	client := &http.Client{}
+	client := http.Client{Timeout: client1CTimeout * time.Second}
 
 	// marshal User to json
 	json, err := json.Marshal(sliceUsers)
@@ -202,7 +220,11 @@ func RestPutOneUserEmailToZup(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("Content-Type", "application/json") //; charset=utf-8")
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error("handlers.PutOneUserEmailToZup handl client.Do(req) error:", err)
+		strError := fmt.Sprintf("rest: handlers.PutOneUserEmailToZup handl client.Do(req) error: %v", err)
+		log.Error(strError)
+		w.WriteHeader(http.StatusNotFound) //StatusRequestTimeout
+		w.Write([]byte("1C:ZUP is not available: " + strError))
+		return
 	}
 	defer resp.Body.Close()
 
@@ -258,7 +280,7 @@ func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 		req.Header.Set("Content-Type", "application/json")
 
 		// отправляем запрос
-		client := &http.Client{} // TODO  добавить Timeout
+		client := http.Client{Timeout: client1CTimeout * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
 			errorString := "rest handlers.RestPutAllUsersWithEmailToZup client.Do(req) error: " + err.Error()
@@ -354,7 +376,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 		req.Header.Set("Content-Type", "application/json")
 
 		// отправляем запрос
-		client := &http.Client{} // TODO  добавить Timeout
+		client := http.Client{Timeout: client1CTimeout * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
 			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts client.Do(req) error: " + err.Error()
@@ -556,17 +578,21 @@ func RestGetFromZupPingAllDepartaments() http.HandlerFunc {
 			log.Error("rest handlers.RestGetFromZupPingAllDepartaments http.NewRequest error: ", err)
 		}
 		// create client, do request and get response
-		client := http.DefaultClient
+		client := http.Client{Timeout: client1CTimeout * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Error("rest handlers.RestGetFromZupPingAllDepartaments client.Do(req) error: ", err)
+			strError := fmt.Sprintf("rest: handlers.RestGetFromZupPingAllDepartaments client.Do(req) error: %v", err)
+			log.Error(strError)
+			w.WriteHeader(http.StatusNotFound) //StatusRequestTimeout
+			w.Write([]byte("1C:ZUP is not available: " + strError))
+			return
 		}
 		defer resp.Body.Close()
 
 		// have got body of response
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Error("rest handlers.RestGetFromZupPingAllDepartaments ioutil.ReadAll(resp.Body) error: ", err)
+			log.Error("rest handlers.RestGetFromZupPingAllDepartaments ioutil.ReadAll(resp.Body) error: %v", err)
 		}
 
 		HandleZupPingAllDepartaments(w, body)
@@ -607,10 +633,15 @@ func RestHandleFromZupAllDepartament(ins *repository.Instance) http.HandlerFunc 
 			log.Error("rest handlers.RestHandleFromZupAllDepartament http.NewRequest error: %v", err)
 		}
 		// create client, do request and get response
-		client := http.DefaultClient
+		client := http.Client{Timeout: client1CTimeout * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Error("rest handlers.RestHandleFromZupAllDepartament client.Do(req) error: %v", err)
+			strError := fmt.Sprintf("rest: handlers.RestHandleFromZupAllDepartament client.Do(req) error: %v", err)
+			log.Error(strError)
+			rw.WriteHeader(http.StatusNotFound) //StatusRequestTimeout
+			rw.Write([]byte("1C:ZUP is not available: " + strError))
+			return
 		}
 		defer resp.Body.Close()
 

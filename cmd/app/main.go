@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 
 	"mdata/internal/domain"
@@ -34,7 +33,6 @@ func createDBConnPool() *pgxpool.Pool {
 	poolConfig, err := repository.NewPoolConfig(cfg)
 	if err != nil {
 		log.Error("main: Pool config error:", err)
-		os.Exit(1)
 		panic(err)
 	}
 
@@ -45,7 +43,6 @@ func createDBConnPool() *pgxpool.Pool {
 	pool, err := repository.NewConnection(poolConfig)
 	if err != nil {
 		log.Error("main: Connect to database  error:", err)
-		os.Exit(1)
 		panic(err)
 	}
 	fmt.Println("DB connection OK!")
