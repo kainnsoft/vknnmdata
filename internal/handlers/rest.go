@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -432,10 +433,68 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 //------------------------------------------------------------
 // все аттрибуты
 // Отдаем данные всех работающих (актуальных) сотрудников (все аттрибуты)
-func RestSendAllEmployeesAllAttributes(ins *repository.Instance) http.HandlerFunc {
+func RestSendActEmployeesAllAttributes(ins *repository.Instance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// получаем весь массив сотрудников, который будем возвращать
-		jsonSliceOfEmployees, err := GetAllEmployeesAllAttributes(ins)
+		jsonSliceOfEmployees, err := GetActEmployeesAllAttributes(ins)
+		if err != nil {
+			http.Error(w, "500 - Something bad happened!", 500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(jsonSliceOfEmployees)
+	}
+}
+
+// Отдаем данные всех уволенных сотрудников (все аттрибуты)
+func RestSendUsersFiredFromAllAttributes(ins *repository.Instance) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var dateFrom time.Time = time.Now()
+
+		params := r.URL.Query()
+		if len(params) < 1 {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("There are no parametrs. Please enter right parametr"))
+			return
+		}
+		if len(params) > 1 {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Too many parametrs. Please enter right parametr"))
+			return
+		}
+
+		paramFrom := strings.TrimSpace(params.Get("from"))
+		if paramFrom != "" {
+			layout := "2006-01-02"
+
+			matched, err := regexp.MatchString(`\d\d\d\d-\d\d-\d\d`, paramFrom)
+			if err != nil {
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte("Somthing wrong. Please try again"))
+				return
+			}
+			if !matched {
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte("Wrong format. Please try again"))
+				return
+			}
+
+			dateFrom, err = time.Parse(layout, paramFrom)
+			if err != nil {
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte("Somthing wrong. Please try again"))
+				return
+			}
+			fmt.Println("paramFrom = ", paramFrom)
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Wrong parametr. Please enter right parametr"))
+			return
+		}
+
+		// получаем весь массив сотрудников, который будем возвращать
+		jsonSliceOfEmployees, err := GetFiredEmployeesUsersAllAttributes(ins, dateFrom)
 		if err != nil {
 			http.Error(w, "500 - Something bad happened!", 500)
 			w.Write([]byte(err.Error()))

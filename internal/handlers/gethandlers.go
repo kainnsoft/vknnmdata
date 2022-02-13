@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -92,14 +91,11 @@ func handleZupWriteAllUsers(ins *repository.Instance, data []byte) (string, erro
 
 func getUserEmailByEmployeeTabNo(insLdapConn *repository.LdapConn, user dom.User) (string, error) {
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	var resEmail string
 	var wg sync.WaitGroup
 
-	fn := func() func(context.Context, string) {
-		return func(ctx context.Context, searchParam string) {
+	fn := func() func(string) {
+		return func(searchParam string) {
 			defer func() {
 				wg.Done()
 			}()
@@ -116,9 +112,9 @@ func getUserEmailByEmployeeTabNo(insLdapConn *repository.LdapConn, user dom.User
 
 	for _, empl := range user.Employees {
 		wg.Add(1)
-		go fn(ctx, strings.TrimSpace(user.UserID)) // поиск по коду физ. лица
+		go fn(strings.TrimSpace(user.UserID)) // поиск по коду физ. лица
 		wg.Add(1)
-		go fn(ctx, empl.EmployeeId) // поиск по коду сотрудника
+		go fn(empl.EmployeeId) // поиск по коду сотрудника
 		// wg.Add(1)
 		// go fn(ctx, empl.EmpTabNumber) // поиск по "личному номеру"
 

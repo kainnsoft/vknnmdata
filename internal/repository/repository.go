@@ -141,27 +141,27 @@ func (i *Instance) UpdateUserInDB(v *domain.User, currEmail string) (string, err
 	return commandTag.String(), nil
 }
 
-func (i *Instance) GetAllUsersWithEmail() ([]domain.UserWithEmail, error) {
+func (i *Instance) GetAllUsersWithEmail() ([]domain.User, error) {
 
-	usersWithEmailsSlice := make([]domain.UserWithEmail, 0)
+	usersSlice := make([]domain.User, 0)
 
 	rows, err := i.Db.Query(context.Background(), "select user_guid, user_name, user_id, email from users where email <> '';")
 	if err == pgx.ErrNoRows {
 		fmt.Println("No rows")
-		return usersWithEmailsSlice, err
+		return usersSlice, err
 	} else if err != nil {
 		fmt.Println(err)
-		return usersWithEmailsSlice, err
+		return usersSlice, err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		curUser := new(domain.UserWithEmail)
+		curUser := new(domain.User)
 		rows.Scan(&curUser.UserGUID, &curUser.UserName, &curUser.UserID, &curUser.UserEmail)
-		usersWithEmailsSlice = append(usersWithEmailsSlice, *curUser)
+		usersSlice = append(usersSlice, *curUser)
 	}
 
-	return usersWithEmailsSlice, nil
+	return usersSlice, nil
 }
 
 // вернём всех пользователей (физ.лиц) и уволенные тоже:
@@ -402,30 +402,30 @@ const commonQueryLightVersionAttributes = "select usr.user_name, usr.user_id, us
 	" empl.employee_id, empl.employee_tabno, empl.employment, empl.employee_adress, " +
 	" dep.zup_id, dep.departament_descr, " +
 	" pos.position_descr, " +
-	" emplCS.state_date_from " +
+	" emplCS.state_descr, emplCS.state_date_from " +
 	"    from users usr " +
 	"        left join employees empl on usr.user_guid=empl.employee_user " +
 	"        left join departaments dep on empl.employee_departament=dep.departament_guid " +
 	"        left join positions pos on pos.employee_guid=empl.employee_guid" +
 	"        left join employee_states emplCS on emplCS.employee_guid=empl.employee_guid "
 
-func handlRowsLightVersionAttributes(rows pgx.Rows) []domain.UserLight {
-	allUsersSlice := make([]domain.UserLight, 0, 1000)
-	curUser := new(domain.UserLight)
-	var oldUser = domain.UserLight{}
-	empSlice := make([]domain.EmployeeLight, 0, 2)
+func handlRowsLightVersionAttributes(rows pgx.Rows) []domain.User {
+	allUsersSlice := make([]domain.User, 0, 1000)
+	curUser := new(domain.User)
+	var oldUser = domain.User{}
+	empSlice := make([]domain.Employee, 0, 2)
 
 	for rows.Next() {
 
-		curEmpl := new(domain.EmployeeLight)
-		curDep := new(domain.DepartamentLight)
-		curPos := new(domain.PositionLight)
-		curEmplSt := new(domain.EmplCurrentStateLight)
+		curEmpl := new(domain.Employee)
+		curDep := new(domain.Departament)
+		curPos := new(domain.Position)
+		curEmplSt := new(domain.EmplCurrentState)
 		rows.Scan(&curUser.UserName, &curUser.UserID, &curUser.UserEmail,
 			&curEmpl.EmployeeId, &curEmpl.EmpTabNumber, &curEmpl.Employment, &curEmpl.EmployeeAdress,
 			&curDep.DepartamentIdZUP, &curDep.DepartamentDescr,
 			&curPos.PositionDescr,
-			&curEmplSt.DateFrom)
+			&curEmplSt.StateName, &curEmplSt.DateFrom)
 
 		curEmpl.EmployeeDepartament = *curDep
 		curEmpl.EmployeePosition = *curPos
@@ -434,7 +434,7 @@ func handlRowsLightVersionAttributes(rows pgx.Rows) []domain.UserLight {
 		if (oldUser.UserID != "") && (curUser.UserID != oldUser.UserID) {
 			oldUser.Employees = empSlice
 			allUsersSlice = append(allUsersSlice, oldUser)
-			empSlice = make([]domain.EmployeeLight, 0, 2)
+			empSlice = make([]domain.Employee, 0, 2)
 		}
 
 		empSlice = append(empSlice, *curEmpl)
@@ -447,11 +447,11 @@ func handlRowsLightVersionAttributes(rows pgx.Rows) []domain.UserLight {
 }
 
 // вернём всех работающих пользователей (физ.лиц) облегчённые атрибуты:
-func (i *Instance) GetAllActualUsersLightVersionAttributes() ([]domain.UserLight, error) {
+func (i *Instance) GetAllActualUsersLightVersionAttributes() ([]domain.User, error) {
 
 	const usrs_query = commonQueryLightVersionAttributes + " where state_descr ilike $1;"
 
-	allUsersSlice := make([]domain.UserLight, 0)
+	allUsersSlice := make([]domain.User, 0)
 
 	rows, err := i.Db.Query(context.Background(), usrs_query, "%Работ%")
 	if err == pgx.ErrNoRows {
@@ -469,11 +469,11 @@ func (i *Instance) GetAllActualUsersLightVersionAttributes() ([]domain.UserLight
 }
 
 // вернём всех работающих пользователей (физ.лиц), у которых есть email-ы (облегчённые аттрибуты):
-func (i *Instance) GetAllActualEmailUsersLightVersionAttributes() ([]domain.UserLight, error) {
+func (i *Instance) GetAllActualEmailUsersLightVersionAttributes() ([]domain.User, error) {
 
 	const usrs_query = commonQueryLightVersionAttributes + " where state_descr ilike $1 and email<>'';"
 
-	allUsersSlice := make([]domain.UserLight, 0)
+	allUsersSlice := make([]domain.User, 0)
 
 	rows, err := i.Db.Query(context.Background(), usrs_query, "%Работ%")
 	if err == pgx.ErrNoRows {
@@ -491,11 +491,11 @@ func (i *Instance) GetAllActualEmailUsersLightVersionAttributes() ([]domain.User
 }
 
 // вернём массив только работающих пользователей с подходящими кодами - табельными номерами (?tabno=8337) облегчённые атрибуты:
-func (i *Instance) GetActualUsersByTabNoLightVersionAttributes(tabno string) ([]domain.UserLight, error) {
+func (i *Instance) GetActualUsersByTabNoLightVersionAttributes(tabno string) ([]domain.User, error) {
 
 	const usrs_query = commonQueryLightVersionAttributes + " where user_id ilike $1 and state_descr ilike $2;"
 
-	usersByTabNoSlice := make([]domain.UserLight, 0)
+	usersByTabNoSlice := make([]domain.User, 0)
 
 	rows, err := i.Db.Query(context.Background(), usrs_query, "%"+tabno+"%", "%Работ%")
 	if err == pgx.ErrNoRows {
@@ -513,11 +513,11 @@ func (i *Instance) GetActualUsersByTabNoLightVersionAttributes(tabno string) ([]
 }
 
 // вернём массив только работающих пользователей с подходящими ФИО (?name=захаро) облегчённые атрибуты:
-func (i *Instance) GetActualUsersByUserNameLightVersionAttributes(userName string) ([]domain.UserLight, error) {
+func (i *Instance) GetActualUsersByUserNameLightVersionAttributes(userName string) ([]domain.User, error) {
 
 	const usrs_query = commonQueryLightVersionAttributes + " where user_name ilike $1 and state_descr ilike $2;"
 
-	usersByUserNameSlice := make([]domain.UserLight, 0)
+	usersByUserNameSlice := make([]domain.User, 0)
 
 	rows, err := i.Db.Query(context.Background(), usrs_query, "%"+userName+"%", "%Работ%")
 	if err == pgx.ErrNoRows {

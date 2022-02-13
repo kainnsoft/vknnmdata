@@ -105,13 +105,16 @@ func main() {
 	//------------------------------------------------------------------
 	// все аттрибуты
 	// отдать всех работающих (актуальных) физ.лиц (все аттрибуты)
-	http.HandleFunc("/get-act-employees/", handlers.RestSendAllEmployeesAllAttributes(ins))
+	http.HandleFunc("/get-act-employees/", handlers.RestSendActEmployeesAllAttributes(ins))
 
 	// отдать всех работающих (актуальных) физ.лиц, у которых есть email-ы (все аттрибуты)
 	http.HandleFunc("/get-act-email-employees/", handlers.RestSendAllEmailEmployeesAllAttributes(ins))
 
 	// отдать сотрудника(-ков) работающих (актуальных) по параметрам ?tabno=8337 или ?name=Кабанов (обрабатывается по принципу like) (все аттрибуты)
 	http.HandleFunc("/get-act-employee", handlers.RestSendEmployeeAllAttributes(ins))
+
+	// отдать всех уволенных физ.лиц (все аттрибуты) по параметрам ?from=2006-01-02  (YYYY-MM-DD)
+	http.HandleFunc("/get-fired-employees", handlers.RestSendUsersFiredFromAllAttributes(ins))
 
 	//------------------------------------------------------------------
 	// облегчённые аттрибуты

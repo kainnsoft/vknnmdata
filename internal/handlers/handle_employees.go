@@ -11,25 +11,6 @@ import (
 
 //------------------------------------------------------------
 // все аттрибуты
-// Отдаем данные всех работающих (актуальных) сотрудников (все аттрибуты)
-func GetAllEmployeesAllAttributes(ins *repository.Instance) ([]byte, error) {
-	// пока ВСЕ (не один) из базы:
-	allEmployeesData, err := ins.GetAllActualUsersAllAttributes()
-	if err != nil {
-		log.Error("GetAllEmployeesAllAttributes", err)
-	}
-
-	allEmployees := dom.AGUsers{}
-	allEmployees.Users = allEmployeesData
-
-	sliceOfByte, err := json.MarshalIndent(allEmployees, "", "  ")
-	if err != nil {
-		log.Error("marshal GetAllEmployeesAllAttributes error", err)
-	}
-
-	return sliceOfByte, nil
-}
-
 // Отдаем данные всех работающих (актуальных) сотрудников, у которых есть email-ы (все аттрибуты)
 func GetAllEmailEmployeesAllAttributes(ins *repository.Instance) ([]byte, error) {
 	// пока ВСЕ (не один) из базы:
@@ -59,7 +40,7 @@ func GetAllEmployeesLightVersionAttributes(ins *repository.Instance) ([]byte, er
 		log.Error("GetAllEmployeesLightVersionAttributes", err)
 	}
 
-	allEmployees := dom.AGUsersLight{}
+	allEmployees := dom.AGUsers{}
 	allEmployees.Users = allEmployeesData
 
 	sliceOfByte, err := json.MarshalIndent(allEmployees, "", "  ")
@@ -78,7 +59,7 @@ func GetAllEmailEmployeesLightVersionAttributes(ins *repository.Instance) ([]byt
 		log.Error("GetAllEmailEmployeesLightVersionAttributes", err)
 	}
 
-	allEmployees := dom.AGUsersLight{}
+	allEmployees := dom.AGUsers{}
 	allEmployees.Users = allEmployeesData
 
 	sliceOfByte, err := json.MarshalIndent(allEmployees, "", "  ")

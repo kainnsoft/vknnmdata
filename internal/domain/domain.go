@@ -146,42 +146,6 @@ type EmplCurrentState struct {
 }
 
 //--------------------------------------------
-// облегченные (не все аттрибуты)
-type AGUsersLight struct {
-	Users []UserLight `json:"users"`
-}
-type UserLight struct {
-	UserName  string          `json:"userName"`
-	UserID    string          `json:"userId"`
-	UserEmail string          `json:"userEmail"`
-	Employees []EmployeeLight `json:"employees"`
-}
-type EmployeeLight struct {
-	EmployeeId           string                `json:"employeeId"`
-	Employment           string                `json:"employment"` // тип работы ("Основное место работы", "Внутреннее совместительство" и т.д.)
-	EmpTabNumber         string                `json:"tabNumber"`
-	EmployeePosition     PositionLight         `json:"position"`
-	EmployeeDepartament  DepartamentLight      `json:"departament"`
-	EmployeeCurrentState EmplCurrentStateLight `json:"currentState"`
-	EmployeeAdress       string                `json:"employeeAdress"`
-}
-type PositionLight struct {
-	PositionDescr string `json:"positionDescr"`
-}
-
-type DepartamentsLight struct {
-	Departaments []Departament `json:"departaments"`
-}
-
-type DepartamentLight struct {
-	DepartamentDescr string `json:"departamentDescr"`
-	DepartamentIdZUP string `json:"departamentId"`
-}
-type EmplCurrentStateLight struct {
-	DateFrom CastDate `json:"dateFrom"`
-}
-
-//--------------------------------------------
 // тип для мапинга get-запросов по пользователям
 type EmployeeFilterData struct {
 	Name  string `mapper:"name" json:"name"`

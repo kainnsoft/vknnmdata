@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	dom "mdata/internal/domain"
 	log "mdata/internal/logging"
@@ -167,6 +168,44 @@ func updateUser(ins *repository.Instance, currEmail string, usr *dom.User) (stri
 
 //------------------------------------------------------------
 // все аттрибуты
+// Отдаем данные всех user-ов, сотрудники которых работают (актуальны)  (все аттрибуты)
+func GetActEmployeesAllAttributes(ins *repository.Instance) ([]byte, error) {
+	// пока ВСЕ (не один) из базы:
+	allEmployeesData, err := ins.GetAllActualUsersAllAttributes()
+	if err != nil {
+		log.Error("GetActEmployeesAllAttributes", err)
+	}
+
+	allEmployees := dom.AGUsers{}
+	allEmployees.Users = allEmployeesData
+
+	sliceOfByte, err := json.MarshalIndent(allEmployees, "", "  ")
+	if err != nil {
+		log.Error("marshal GetActEmployeesAllAttributes error", err)
+	}
+
+	return sliceOfByte, nil
+}
+
+// Отдаем данные всех user-ов, сотрудники которых уволены  (все аттрибуты)
+func GetFiredEmployeesUsersAllAttributes(ins *repository.Instance, dateFrom time.Time) ([]byte, error) {
+	// пока ВСЕ (не один) из базы:
+	allEmployeesData, err := ins.GetUsersFiredFrom(dateFrom)
+	if err != nil {
+		log.Error("GetFiredEmployeesUsersAllAttributes", err)
+	}
+
+	allEmployees := dom.AGUsers{}
+	allEmployees.Users = allEmployeesData
+
+	sliceOfByte, err := json.MarshalIndent(allEmployees, "", "  ")
+	if err != nil {
+		log.Error("marshal GetFiredEmployeesUsersAllAttributes error", err)
+	}
+
+	return sliceOfByte, nil
+}
+
 // вернём массив только работающих пользователей с подходящими кодами - табельными номерами (?tabno=8337) все атрибуты:
 func GetUsersByTabNoAllAttributes(ins *repository.Instance, tabno string) []byte {
 	// пока ВСЕ (не один) из базы:
@@ -215,7 +254,7 @@ func GetUsersByTabNoLightVersionAttributes(ins *repository.Instance, tabno strin
 		log.Error("GetUsersByTabNoLightVersionAttributes", err)
 	}
 
-	usersByTabNo := dom.AGUsersLight{}
+	usersByTabNo := dom.AGUsers{}
 	usersByTabNo.Users = usersByTabNoSlice
 
 	sliceOfByte, err := json.MarshalIndent(usersByTabNo, "", "  ")
@@ -234,7 +273,7 @@ func GetUsersByNameLightVersionAttributes(ins *repository.Instance, userName str
 		log.Error("GetUsersByNameLightVersionAttributes", err)
 	}
 
-	usersByUserName := dom.AGUsersLight{}
+	usersByUserName := dom.AGUsers{}
 	usersByUserName.Users = usersByUserNameSlice
 
 	sliceOfByte, err := json.MarshalIndent(usersByUserName, "", "  ")
