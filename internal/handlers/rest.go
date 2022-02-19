@@ -11,9 +11,9 @@ import (
 	"time"
 
 	dom "mdata/internal/domain"
-	log "mdata/internal/logging"
 	"mdata/internal/repository"
 	"mdata/internal/utils"
+	log "mdata/pkg/logging"
 )
 
 const api1CZupPing = "http://md:masteR+Data2021@srv-web1:8086/EmployeeData/hs/VK_EmployeeData/ping"

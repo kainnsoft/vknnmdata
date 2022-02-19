@@ -3,8 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	dom "mdata/internal/domain"
-	log "mdata/internal/logging"
 	"mdata/internal/repository"
+	log "mdata/pkg/logging"
 	"sync"
 )
 
@@ -60,6 +60,9 @@ func putRequestFromZupLoading(ins *repository.Instance, exMap *map[int]int, erro
 				wg.Done()
 				errChan <- curResultStruct
 			}()
+			if len(errorStr) > 300 {
+				errorStr = errorStr[0:299]
+			}
 			err := ins.SetExchangeStatus(k, v, errorStr)
 			curResultStruct = resultStruct{k: k, err: err}
 		}()

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	log "mdata/internal/logging"
+	log "mdata/pkg/logging"
 )
 
 // Отправка log-а в бухгалтерию:

@@ -8,8 +8,8 @@ import (
 
 	"mdata/internal/domain"
 	"mdata/internal/handlers"
-	log "mdata/internal/logging"
 	"mdata/internal/repository"
+	log "mdata/pkg/logging"
 
 	_ "net/http/pprof"
 

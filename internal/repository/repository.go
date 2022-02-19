@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"mdata/internal/domain"
-	log "mdata/internal/logging"
+	log "mdata/pkg/logging"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"

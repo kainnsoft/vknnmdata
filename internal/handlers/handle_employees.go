@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	dom "mdata/internal/domain"
-	log "mdata/internal/logging"
 	"mdata/internal/repository"
+	log "mdata/pkg/logging"
 	"strings"
 )
 

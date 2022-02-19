@@ -10,7 +10,7 @@ import (
 	"time"
 
 	dom "mdata/internal/domain"
-	log "mdata/internal/logging"
+	log "mdata/pkg/logging"
 
 	"github.com/go-mail/mail"
 )

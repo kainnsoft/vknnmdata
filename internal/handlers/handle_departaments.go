@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	dom "mdata/internal/domain"
-	log "mdata/internal/logging"
 	"mdata/internal/repository"
+	log "mdata/pkg/logging"
 )
 
 //*********************************************************************************

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	dom "mdata/internal/domain"
-	log "mdata/internal/logging"
 	"mdata/internal/repository"
+	log "mdata/pkg/logging"
 )
 
 // Функция для записи одного user-а в базу, если не нашли такого по GUID, либо обновление, если нашли:

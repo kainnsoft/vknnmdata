@@ -1,11 +1,4 @@
 .vscode
-md-info.log
-#go.mod
-#go.sum
-/cmd/app/logs/**
-/cmd/app/md-info.log
-/cmd/app/config.yml
-/cmd/app/mdBuch-info.log
-/cmd/app/mdWeekly-info.log
-/cmd/app/Электронные почты сотрудников.log
-/cmd/app/\320\255\320\273\320\265\320\272\321\202\321\200\320\276\320\275\320\275\321\213\320\265 \320\277\320\276\321\207\321\202\321\213 \321\201\320\276\321\202\321\200\321\203\320\264\320\275\320\270\320\272\320\276\320\262.log
+cmd/app/logs/
+cmd/app/config.yml
+.gitlab-ci.yml
