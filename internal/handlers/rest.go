@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	dom "mdata/internal/domain"
@@ -486,7 +487,6 @@ func RestSendUsersFiredFromAllAttributes(ins *repository.Instance) http.HandlerF
 				w.Write([]byte("Somthing wrong. Please try again"))
 				return
 			}
-			fmt.Println("paramFrom = ", paramFrom)
 		} else {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Wrong parametr. Please enter right parametr"))
@@ -589,6 +589,41 @@ func RestSendAllEmailEmployeesLightVersionAttributes(ins *repository.Instance) h
 	}
 }
 
+type delayStruct struct {
+	delayMap map[string]time.Time
+	mu       sync.RWMutex
+}
+
+func delayStructInit() *delayStruct {
+	return &delayStruct{
+		delayMap: make(map[string]time.Time, 0),
+	}
+}
+
+func (ds *delayStruct) writeTime(comp string, t time.Time) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	ds.delayMap[comp] = t
+}
+
+func (ds *delayStruct) getTime(comp string) (time.Time, bool) {
+	ds.mu.RLock()
+	defer ds.mu.RUnlock()
+	t, ok := ds.delayMap[comp]
+	if !ok {
+		t = time.Time{}
+	}
+	return t, ok
+}
+
+func (ds *delayStruct) delRecord(comp string) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	delete(ds.delayMap, comp)
+}
+
+var globalDelayMap = delayStructInit()
+
 // Отдаем данные одного/группы работающих (актуальных) пользователя(-лей) по одному параметру (обрабатывается как like) (облегчённые аттрибуты)
 func RestSendEmployeeLightVersionAttributes(ins *repository.Instance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -614,6 +649,25 @@ func RestSendEmployeeLightVersionAttributes(ins *repository.Instance) http.Handl
 			w.Write(jsonSliceOfUsersByTabNo)
 			return
 		} else if userName != "" {
+
+			// request from 1C
+			if strings.Contains(r.Header["User-Agent"][0], "Enterprise") {
+				// TODO LRU Cash
+				remAddr := r.RemoteAddr
+				assertLenRemAddr := len(remAddr) - 6
+				remAddr = remAddr[:assertLenRemAddr]
+				t, ok := globalDelayMap.getTime(remAddr)
+				if !ok {
+					globalDelayMap.writeTime(remAddr, time.Now())
+					return
+				}
+				if time.Since(t) < 5*time.Second {
+					globalDelayMap.writeTime(remAddr, time.Now()) // рестартуем таймер
+					return
+				}
+				globalDelayMap.delRecord(remAddr)
+			}
+
 			// получаем весь массив сотрудников, который будем возвращать, т.к. параметр обрабатывается как like
 			jsonSliceOfUsersByName := GetUsersByNameLightVersionAttributes(ins, userName)
 			w.WriteHeader(http.StatusOK)

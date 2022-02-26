@@ -398,7 +398,7 @@ func (i *Instance) GetActualUsersByUserNameAllAttributes(userName string) ([]dom
 
 //---------------------------------------
 // облегченные (не все аттрибуты)
-const commonQueryLightVersionAttributes = "select usr.user_name, usr.user_id, usr.email, " +
+const commonQueryLightVersionAttributes = "select usr.user_guid, usr.user_name, usr.user_id, usr.email, " +
 	" empl.employee_id, empl.employee_tabno, empl.employment, empl.employee_adress, " +
 	" dep.zup_id, dep.departament_descr, " +
 	" pos.position_descr, " +
@@ -421,7 +421,7 @@ func handlRowsLightVersionAttributes(rows pgx.Rows) []domain.User {
 		curDep := new(domain.Departament)
 		curPos := new(domain.Position)
 		curEmplSt := new(domain.EmplCurrentState)
-		rows.Scan(&curUser.UserName, &curUser.UserID, &curUser.UserEmail,
+		rows.Scan(&curUser.UserGUID, &curUser.UserName, &curUser.UserID, &curUser.UserEmail,
 			&curEmpl.EmployeeId, &curEmpl.EmpTabNumber, &curEmpl.Employment, &curEmpl.EmployeeAdress,
 			&curDep.DepartamentIdZUP, &curDep.DepartamentDescr,
 			&curPos.PositionDescr,
@@ -444,6 +444,44 @@ func handlRowsLightVersionAttributes(rows pgx.Rows) []domain.User {
 	allUsersSlice = append(allUsersSlice, oldUser)
 
 	return allUsersSlice
+}
+
+// то же самое, только в map-у (по user_guid)
+func handlRowsLightVersionAttributesToMap(rows pgx.Rows) map[string]domain.User {
+	allUsersMap := make(map[string]domain.User)
+	curUser := new(domain.User)
+	var oldUser = domain.User{}
+	empSlice := make([]domain.Employee, 0, 2)
+
+	for rows.Next() {
+
+		curEmpl := new(domain.Employee)
+		curDep := new(domain.Departament)
+		curPos := new(domain.Position)
+		curEmplSt := new(domain.EmplCurrentState)
+		rows.Scan(&curUser.UserGUID, &curUser.UserName, &curUser.UserID, &curUser.UserEmail,
+			&curEmpl.EmployeeId, &curEmpl.EmpTabNumber, &curEmpl.Employment, &curEmpl.EmployeeAdress,
+			&curDep.DepartamentIdZUP, &curDep.DepartamentDescr,
+			&curPos.PositionDescr,
+			&curEmplSt.StateName, &curEmplSt.DateFrom)
+
+		curEmpl.EmployeeDepartament = *curDep
+		curEmpl.EmployeePosition = *curPos
+		curEmpl.EmployeeCurrentState = *curEmplSt
+
+		if (oldUser.UserID != "") && (curUser.UserID != oldUser.UserID) {
+			oldUser.Employees = empSlice
+			allUsersMap[oldUser.UserGUID] = oldUser
+			empSlice = make([]domain.Employee, 0, 2)
+		}
+
+		empSlice = append(empSlice, *curEmpl)
+		oldUser = *curUser
+	}
+	oldUser.Employees = empSlice
+	allUsersMap[oldUser.UserGUID] = oldUser
+
+	return allUsersMap
 }
 
 // вернём всех работающих пользователей (физ.лиц) облегчённые атрибуты:
