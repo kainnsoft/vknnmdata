@@ -17,11 +17,12 @@ import (
 var insLdapConn *repository.LdapConn
 
 func openLdapConn() error {
-	cfg := &dom.Config{}
-	cfg.ADHost = repository.ReadConfig("ad.host")
-	cfg.ADUsername = repository.ReadConfig("ad.username")
-	cfg.ADPassword = repository.ReadConfig("ad.password")
-	cfg.ADPort = repository.ReadConfig("ad.port")
+	cfg := repository.GetCfg()
+	// cfg := &dom.Config{}
+	// cfg.ADHost = repository.ReadConfig("ad.host")
+	// cfg.ADUsername = repository.ReadConfig("ad.username")
+	// cfg.ADPassword = repository.ReadConfig("ad.password")
+	// cfg.ADPort = repository.ReadConfig("ad.port")
 
 	conn, err := repository.LdapSetConnection(cfg)
 	if err != nil {

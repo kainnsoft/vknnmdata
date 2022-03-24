@@ -17,12 +17,11 @@ import (
 	log "mdata/pkg/logging"
 )
 
-const api1CZupPing = "http://md:masteR+Data2021@srv-web1:8086/EmployeeData/hs/VK_EmployeeData/ping"
-const api1CZupAllEmployees = "http://md:masteR+Data2021@srv-web1:8086/EmployeeData/hs/VK_EmployeeData/get_all_users"
-
-const putTo1CZupEmailAdress = "http://md:masteR+Data2021@srv-web1:8086/mdzup-load/hs/mdzup-load-email/put-email"
-const putTo1CCreateUserAdress = "http://srv-web1:8086/mdzup-load/hs/mdzup-load-email/put-email" //  TODO
-const api1CZupAllDepartaments = "http://md:masteR+Data2021@srv-web1:8086/EmployeeData/hs/VK_EmployeeData/get_departaments"
+//const api1CZupPing = "http://md:masteR+Data2021@srv-web1:8086/EmployeeData/hs/VK_EmployeeData/ping"
+//const api1CZupAllEmployees = "http://md:masteR+Data2021@srv-web1:8086/EmployeeData/hs/VK_EmployeeData/get_all_users"
+//const putTo1CZupEmailAdress = "http://md:masteR+Data2021@srv-web1:8086/mdzup-load/hs/mdzup-load-email/put-email"
+//const putTo1CCreateUserAdress = "http://srv-web1:8086/mdzup-load/hs/mdzup-load-email/put-email" //  TODO
+//const api1CZupAllDepartaments = "http://md:masteR+Data2021@srv-web1:8086/EmployeeData/hs/VK_EmployeeData/get_departaments"
 
 const client1CTimeout = 20
 
@@ -40,7 +39,7 @@ func PingZup(w http.ResponseWriter, r *http.Request) {
 	// ctx, cancel := context.WithTimeout(r.Context(), 10*time.Millisecond)
 	// defer cancel()
 	// req, err := http.NewRequestWithContext(ctx, http.MethodGet, api1CZupPing, nil)
-	req, err := http.NewRequest(http.MethodGet, api1CZupPing, nil)
+	req, err := http.NewRequest(http.MethodGet, repository.GetApi1CZupPing(), nil)
 	if err != nil {
 		log.Error("rest: handlers.PingZup: no request: %v", err)
 	}
@@ -88,7 +87,7 @@ func PingDB(ins *repository.Instance) http.HandlerFunc {
 // ping - метод. Получим всех пользователей 1С:ЗУП
 func PingFromZmupAllUsers(w http.ResponseWriter, r *http.Request) {
 	// create request
-	req, err := http.NewRequest(http.MethodGet, api1CZupAllEmployees, nil)
+	req, err := http.NewRequest(http.MethodGet, repository.GetApi1CZupAllEmployees(), nil)
 	if err != nil {
 		log.Error("rest: handlers.PingEromZupAllEmployees: no request: ", err)
 	}
@@ -126,7 +125,7 @@ func PingFromZmupAllUsers(w http.ResponseWriter, r *http.Request) {
 func RestHandleZupWriteAllUsers(ins *repository.Instance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// request to get user data from 1C:ZUP
-		req, err := http.NewRequest(http.MethodGet, api1CZupAllEmployees, nil)
+		req, err := http.NewRequest(http.MethodGet, repository.GetApi1CZupAllEmployees(), nil)
 		if err != nil {
 			log.Error("handlers.RestHandleZupWriteAllUsers: no request: %v", err)
 		}
@@ -213,7 +212,7 @@ func RestPutOneUserEmailToZup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// set the HTTP method, url, and request body
-	req, err := http.NewRequest(http.MethodPut, putTo1CZupEmailAdress, bytes.NewBuffer(json))
+	req, err := http.NewRequest(http.MethodPut, repository.GetPutTo1CZupEmailAdress(), bytes.NewBuffer(json))
 	if err != nil {
 		log.Error("handlers.PutOneUserEmailToZup handl http.NewRequest error:", err)
 	}
@@ -249,6 +248,7 @@ func RestPutOneUserEmailToZup(w http.ResponseWriter, r *http.Request) {
 // Отправляем в 1С:ЗУП email всех пользователей для обновления email
 func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		body := make([]byte, 0)
 		// (после успешной - ??? загрузки в 1С:ЗУП), отправим log-файл в бухгалтерию:
 		defer utils.SendEmailToBuch(ins)
 
@@ -264,18 +264,18 @@ func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 		if len(jsonSliceOfByte) == 0 {
 			errorString := "rest handlers.RestPutAllUsersWithEmailToZup: нет данных к выгрузке в 1С:ЗУП"
 			log.Info(errorString)
-			http.Error(w, errorString, http.StatusNoContent)                 // 204
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 204") // TODO
-			return                                                           // нет данных к обмену
+			http.Error(w, errorString, http.StatusNoContent)                             // 204
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 204") // TODO
+			return                                                                       // нет данных к обмену
 		}
 
 		// готовим запрос в 1С:ЗУП
-		req, err := http.NewRequest("PUT", putTo1CZupEmailAdress, bytes.NewBuffer(jsonSliceOfByte))
+		req, err := http.NewRequest("PUT", repository.GetPutTo1CZupEmailAdress(), bytes.NewBuffer(jsonSliceOfByte))
 		if err != nil {
 			errorString := "rest handlers.RestPutAllUsersWithEmailToZup: http.NewRequest error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, 400)
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 400")
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 400")
 			return
 		}
 		req.Header.Set("X-Custom-Header", "mdreqwest")
@@ -288,18 +288,18 @@ func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 			errorString := "rest handlers.RestPutAllUsersWithEmailToZup client.Do(req) error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, http.StatusForbidden) // 403
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 403")
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 403")
 			return
 		}
 		defer resp.Body.Close()
 
 		// читаем ответ
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err = ioutil.ReadAll(resp.Body)
 		if err != nil {
 			errorString := "handlers.PutOneUserEmailToZup handl ioutil.ReadAll(resp.Body) error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, http.StatusForbidden) // 403
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 403")
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 403")
 			return
 		}
 
@@ -310,7 +310,7 @@ func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 			//w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("1C:ZUP is not available"))
 			http.NotFound(w, r)
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString)
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString)
 			return
 		} else if resp.StatusCode == 500 {
 			errorString := "rest: handlers.RestPutAllUsersWithEmailToZup: 500 Internal server error"
@@ -318,19 +318,19 @@ func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 			//w.WriteHeader(http.StatusInternalServerError)
 			//w.Write([]byte("500 Internal server error"))
 			http.Error(w, "500 Internal server error", 500)
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString)
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString)
 			return
 		} else if resp.StatusCode != 200 {
 			respError := fmt.Errorf("rest: handlers.RestPutAllUsersWithEmailToZup: %v error descr: %v", resp.Status, string(body))
 			log.Error(respError.Error())
 			http.Error(w, resp.Status, resp.StatusCode)
-			go putRequestFromZupLoading(ins, ptrExchMap, respError.Error())
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, respError.Error())
 			return
 		}
 
 		log.Info("rest: handlers.RestPutAllUsersWithEmailToZup: %d users and their emails have sent to 1C:ZUP; resp.StatusCode: %d", len(jsonSliceOfByte), resp.StatusCode)
 		// если до сюда дошли, то обмен состоялся. Запишем это в табл. "exchanges"
-		go putRequestFromZupLoading(ins, ptrExchMap, "200(ok)")
+		go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, repository.Response200ok)
 	}
 }
 
@@ -340,6 +340,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 	return func(w http.ResponseWriter, r *http.Request) {
 		var errorString string
 		var usersToExchangeSlice []dom.User // для формирования письма
+		body := make([]byte, 0)
 
 		// (после успешной/не успешной загрузки в 1С:CreateUser), отправим log админам 1С:
 		defer func() {
@@ -361,17 +362,17 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: нет данных к выгрузке в 1С:CreateUser"
 			log.Info(errorString)
 			http.Error(w, errorString, http.StatusNoContent)
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 204")
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 204")
 			return
 		}
 
 		// готовим запрос в 1С:CreateUser
-		req, err := http.NewRequest("PUT", putTo1CCreateUserAdress, bytes.NewBuffer(jsonSliceOfByte))
+		req, err := http.NewRequest("PUT", repository.GetPutTo1CCreateUserAdress(), bytes.NewBuffer(jsonSliceOfByte))
 		if err != nil {
 			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: http.NewRequest error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, 400)
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 400")
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 400")
 			return
 		}
 		req.Header.Set("X-Custom-Header", "mdrequest")
@@ -384,18 +385,18 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts client.Do(req) error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, http.StatusForbidden) // 403
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 403")
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 403")
 			return
 		}
 		defer resp.Body.Close()
 
 		// читаем ответ
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err = ioutil.ReadAll(resp.Body)
 		if err != nil {
 			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts handle ioutil.ReadAll(resp.Body) error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, http.StatusForbidden) // 403
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString+" 403")
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 403")
 			return
 		}
 
@@ -406,7 +407,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			//w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("1C:CreateUser is not available"))
 			http.NotFound(w, r)
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString)
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString)
 			return
 		} else if resp.StatusCode == 500 {
 			errorString = "rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: 500 Internal server error"
@@ -414,20 +415,21 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			//w.WriteHeader(http.StatusInternalServerError)
 			//w.Write([]byte("500 Internal server error"))
 			http.Error(w, "500 Internal server error", 500)
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString)
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString)
 			return
 		} else if resp.StatusCode != 200 {
 			respError := fmt.Errorf("rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: %v error descr: %v", resp.Status, string(body))
 			errorString = respError.Error()
 			log.Error(errorString)
 			http.Error(w, resp.Status, resp.StatusCode)
-			go putRequestFromZupLoading(ins, ptrExchMap, errorString)
+			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString)
 			return
 		}
 
 		log.Info("rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: %d users have sent to 1C:CreateUser for accountings; resp.StatusCode: %d", len(jsonSliceOfByte), resp.StatusCode)
 		// если до сюда дошли, то обмен состоялся. Запишем это в табл. "exchanges"
-		go putRequestFromZupLoading(ins, ptrExchMap, "200(ok)")
+
+		go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, repository.Response200ok)
 	}
 }
 
@@ -686,7 +688,7 @@ func RestSendEmployeeLightVersionAttributes(ins *repository.Instance) http.Handl
 func RestGetFromZupPingAllDepartaments() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// create request
-		req, err := http.NewRequest(http.MethodGet, api1CZupAllDepartaments, nil)
+		req, err := http.NewRequest(http.MethodGet, repository.GetApi1CZupAllDepartaments(), nil)
 		if err != nil {
 			log.Error("rest handlers.RestGetFromZupPingAllDepartaments http.NewRequest error: ", err)
 		}
@@ -741,7 +743,7 @@ func RestHandleDebugWriteSingleDepartament(ins *repository.Instance) http.Handle
 func RestHandleFromZupAllDepartament(ins *repository.Instance) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		// create request
-		req, err := http.NewRequest(http.MethodGet, api1CZupAllDepartaments, nil)
+		req, err := http.NewRequest(http.MethodGet, repository.GetApi1CZupAllDepartaments(), nil)
 		if err != nil {
 			log.Error("rest handlers.RestHandleFromZupAllDepartament http.NewRequest error: %v", err)
 		}

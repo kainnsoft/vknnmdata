@@ -1182,12 +1182,12 @@ func (i *Instance) AddToExchange(exch *domain.ExchangeStruct) (string, error) {
 
 // Получим данные user-ов (физ. лиц) к обмену , у которых resp_status не равен 200(ok)
 // метод основан на том, что в поле exch.rowdata не произвольные данные, а user_guid
-func (i *Instance) GetAllUsersToExchange(reasonID int) ([]domain.User, *map[int]int, error) {
+func (i *Instance) GetAllUsersToExchange(reasonID int) ([]domain.User, *map[int]domain.Exchange1СErrorsStruct, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
 	defer cancel()
 
-	mapExID := map[int]int{} // id строк, в которые записывать ответ из 1С (для обработки ошибок)
+	mapExID := map[int]domain.Exchange1СErrorsStruct{} // id строк, в которые записывать ответ из 1С (для обработки ошибок)
 	// в мапу пишем id отправляемой строки и attempt_count
 
 	const query = "select exch.ex_id, exch.attempt_count, " +
@@ -1212,7 +1212,7 @@ func (i *Instance) GetAllUsersToExchange(reasonID int) ([]domain.User, *map[int]
 	for rows.Next() {
 		curUser := new(domain.User)
 		rows.Scan(&exID, &exAttCount, &curUser.UserGUID, &curUser.UserName, &curUser.UserID, &curUser.UserEmail)
-		mapExID[exID] = exAttCount
+		mapExID[exID] = domain.Exchange1СErrorsStruct{UserGUID: curUser.UserGUID, AttemptCount: exAttCount}
 		usersSlice = append(usersSlice, *curUser)
 	}
 

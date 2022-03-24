@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	dom "mdata/internal/domain"
 	log "mdata/pkg/logging"
 
 	"github.com/go-mail/mail"
@@ -47,12 +46,14 @@ type sendMail struct {
 
 func SendMailToRecipient(to []string, BccAdmin, subject, body, attachment string) error {
 
-	cfg := &dom.Config{}
-	cfg.MailUser = ReadConfig("mail.user")
-	cfg.MailPassword = ReadConfig("mail.password")
-	cfg.MailHost = ReadConfig("mail.host")
-	cfg.MailPort = ReadConfig("mail.port")
-	cfg.MailFrom = ReadConfig("mail.from")
+	// cfg := &dom.Config{}
+	// cfg.MailUser = ReadConfig("mail.user")
+	// cfg.MailPassword = ReadConfig("mail.password")
+	// cfg.MailHost = ReadConfig("mail.host")
+	// cfg.MailPort = ReadConfig("mail.port")
+	// cfg.MailFrom = ReadConfig("mail.from")
+
+	cfg := GetCfg()
 
 	curPort, _ := strconv.Atoi(cfg.MailPort)
 	d := mail.Dialer{Host: cfg.MailHost, Port: curPort, StartTLSPolicy: mail.NoStartTLS}
@@ -80,15 +81,27 @@ func SendMailToRecipient(to []string, BccAdmin, subject, body, attachment string
 	return nil
 }
 
+func SendEmailTo1CAdmins(ins *Instance, body string) error {
+	admins, err := ins.GetUserEmailsByNotificationsTypes(1)
+	if err != nil {
+		log.Error("SendEmailTo1CAdmins GetBccAdmin error: %v", err)
+		return err
+	}
+
+	err = SendMailToRecipient(admins, "", "From MD", body, "")
+	return err
+}
+
 func SendMailToRecipient_old____________(buchFilePath string, to []string) {
 
-	cfg := &dom.Config{}
-	cfg.MailUser = ReadConfig("mail.user")
-	cfg.MailPassword = ReadConfig("mail.password")
-	cfg.MailHost = ReadConfig("mail.host")
-	cfg.MailPort = ReadConfig("mail.port")
-	cfg.MailFrom = ReadConfig("mail.from")
+	// cfg := &dom.Config{}
+	// cfg.MailUser = ReadConfig("mail.user")
+	// cfg.MailPassword = ReadConfig("mail.password")
+	// cfg.MailHost = ReadConfig("mail.host")
+	// cfg.MailPort = ReadConfig("mail.port")
+	// cfg.MailFrom = ReadConfig("mail.from")
 
+	cfg := GetCfg()
 	//var mail Mail
 	mail := &sendMail{user: "", //cfg.MailUser,
 		password: "", //cfg.MailPassword,
