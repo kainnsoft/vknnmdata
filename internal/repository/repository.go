@@ -40,7 +40,7 @@ func NewPoolConfig(cfg *domain.Config) (*pgxpool.Config, error) {
 
 //Функция-обертка для создания подключения с помощью пула
 func NewConnection(poolConfig *pgxpool.Config) (*pgxpool.Pool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	conn, err := pgxpool.ConnectConfig(ctx, poolConfig)
 	if err != nil {
@@ -248,6 +248,59 @@ func (i *Instance) GetUsersByUserName(userName string) ([]domain.User, error) {
 		usersByUserNameSlice = append(usersByUserNameSlice, *curUser)
 	}
 	return usersByUserNameSlice, nil
+}
+
+// get users by slice of GUID
+func (i *Instance) GetUsersBySliceOfGUID(userGUIDSlice []string) ([]domain.User, error) {
+
+	usr := make([]domain.User, 0, len(userGUIDSlice))
+
+	queryStr := "select user_guid, user_name, user_id, user_birthday, email from users where user_guid = ANY($1::uuid[])"
+	param := "{" + strings.Join(userGUIDSlice, ",") + "}"
+
+	rows, err := i.Db.Query(context.Background(), queryStr, param)
+	if err == pgx.ErrNoRows {
+		err = fmt.Errorf("no rows: repository.SelectUserByGUID error: %v", err) // "no rows" - не удалять - по ним дальше определяем добавление
+		log.Error(err.Error())
+		return usr, err
+	} else if err != nil {
+		log.Error("repository.SelectUserByGUID error: %v", err)
+		return usr, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		curUser := new(domain.User)
+		rows.Scan(&curUser.UserGUID, &curUser.UserName, &curUser.UserID, &curUser.UserBirthday, &curUser.UserEmail)
+		usr = append(usr, *curUser)
+	}
+
+	return usr, nil
+}
+
+// вернём список пользователей (физ.лиц) по заданному списку guid-ов все атрибуты:
+func (i *Instance) GetCastomUserListAllAttributes(userGUIDSlice []string) ([]domain.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout*time.Millisecond)
+	defer cancel()
+
+	const usrs_query = commonQueryAllAttributes + " where user_guid = ANY($1::uuid[])"
+	param := "{" + strings.Join(userGUIDSlice, ",") + "}"
+
+	allUsersSlice := make([]domain.User, 0)
+
+	rows, err := i.Db.Query(ctx, usrs_query, param)
+	if err == pgx.ErrNoRows {
+		fmt.Println("No rows")
+		return allUsersSlice, err
+	} else if err != nil {
+		fmt.Println(err)
+		return allUsersSlice, err
+	}
+	defer rows.Close()
+
+	allUsersSlice = handlRowsAllAttributes(rows)
+
+	return allUsersSlice, nil
 }
 
 //***************************************************************************************
@@ -1182,7 +1235,7 @@ func (i *Instance) AddToExchange(exch *domain.ExchangeStruct) (string, error) {
 
 // Получим данные user-ов (физ. лиц) к обмену , у которых resp_status не равен 200(ok)
 // метод основан на том, что в поле exch.rowdata не произвольные данные, а user_guid
-func (i *Instance) GetAllUsersToExchange(reasonID int) ([]domain.User, *map[int]domain.Exchange1СErrorsStruct, error) {
+func (i *Instance) GetAllUsersToExchange(reasonID int) ([]string, *map[int]domain.Exchange1СErrorsStruct, error) { // []domain.User
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
 	defer cancel()
@@ -1196,7 +1249,8 @@ func (i *Instance) GetAllUsersToExchange(reasonID int) ([]domain.User, *map[int]
 		"                      left join users usr on cast(exch.rowdata as uuid)=usr.user_guid " +
 		"                          where (exch.r_id=$1 and exch.resp_status<>'200(ok)'); "
 
-	usersSlice := make([]domain.User, 0)
+	//usersSlice := make([]domain.User, 0)
+	usersSlice := make([]string, 0)
 
 	rows, err := i.Db.Query(ctx, query, reasonID)
 	if err == pgx.ErrNoRows {
@@ -1213,7 +1267,7 @@ func (i *Instance) GetAllUsersToExchange(reasonID int) ([]domain.User, *map[int]
 		curUser := new(domain.User)
 		rows.Scan(&exID, &exAttCount, &curUser.UserGUID, &curUser.UserName, &curUser.UserID, &curUser.UserEmail)
 		mapExID[exID] = domain.Exchange1СErrorsStruct{UserGUID: curUser.UserGUID, AttemptCount: exAttCount}
-		usersSlice = append(usersSlice, *curUser)
+		usersSlice = append(usersSlice, *&curUser.UserGUID)
 	}
 
 	return usersSlice, &mapExID, nil

@@ -20,13 +20,6 @@ var pool *pgxpool.Pool
 func createDBConnPool() *pgxpool.Pool {
 	//Задаем параметры для подключения к БД
 	cfg := repository.GetCfg()
-	// cfg := &domain.Config{}
-	// cfg.DBHost = repository.ReadConfig("db.host")
-	// cfg.DBUsername = repository.ReadConfig("db.username")
-	// cfg.DBPassword = repository.ReadConfig("db.password")
-	// cfg.DBPort = repository.ReadConfig("db.port")
-	// cfg.DataBaseName = repository.ReadConfig("db.dbname")
-	// cfg.DBTimeout, _ = strconv.Atoi(repository.ReadConfig("db.timeout"))
 
 	//Создаем конфиг для пула
 	poolConfig, err := repository.NewPoolConfig(cfg)
@@ -36,7 +29,8 @@ func createDBConnPool() *pgxpool.Pool {
 	}
 
 	//Устанавливаем максимальное количество соединений, которые могут находиться в ожидании
-	poolConfig.MaxConns = 5
+	poolConfig.MaxConns = 10
+	poolConfig.ConnConfig.PreferSimpleProtocol = true // включаем передачу бинарных параметров // недокументированная фича Debug
 
 	//Создаем пул подключений
 	pool, err := repository.NewConnection(poolConfig)
@@ -45,6 +39,7 @@ func createDBConnPool() *pgxpool.Pool {
 		panic(err)
 	}
 	fmt.Println("DB connection OK!")
+	fmt.Printf("Conections - Max: %d, Iddle: %d, Total: %d \n", pool.Stat().MaxConns(), pool.Stat().IdleConns(), pool.Stat().TotalConns())
 	return pool
 }
 

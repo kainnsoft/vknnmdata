@@ -32,6 +32,8 @@ func init() {
 	cfg.RefPutTo1CZupEmailAdress = ReadConfig("ref.putto1czupemailadress")
 	cfg.RefApi1CZupAllDepartaments = ReadConfig("ref.api1czupalldepartaments")
 	cfg.RefPutTo1CCreateUserAdress = ReadConfig("ref.putto1ccreateuseradress")
+	cfg.RefPutTo1CCreateUserAdress_login = ReadConfig("ref.putto1ccreateuseradress_login")
+	cfg.RefPutTo1CCreateUserAdress_pass = ReadConfig("ref.putto1ccreateuseradress_pass")
 }
 
 func GetCfg() *domain.Config {
@@ -58,11 +60,19 @@ func GetPutTo1CCreateUserAdress() string {
 	return cfg.RefPutTo1CCreateUserAdress
 }
 
+func GetPutTo1CCreateUserLogin() string {
+	return cfg.RefPutTo1CCreateUserAdress_login
+}
+
+func GetPutTo1CCreateUserPass() string {
+	return cfg.RefPutTo1CCreateUserAdress_pass
+}
+
 // название структуры, получаемой из 1С
 const Array1Cname = "UsersStatus"
 
 // статус записи - успешно ли произошла запись данных строки в 1С
-const RowStatusSuccess = "Success"
+const StatusSuccess = "Success"
 
 // записываем в таблицу exchange, когда обмен прошёл успешно
 const Response200ok = "200(ok)"

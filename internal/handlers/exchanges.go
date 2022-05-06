@@ -5,6 +5,7 @@ import (
 	"fmt"
 	dom "mdata/internal/domain"
 	"mdata/internal/repository"
+	"mdata/internal/utils"
 	log "mdata/pkg/logging"
 	"sync"
 )
@@ -25,9 +26,19 @@ func getUsersArrayWithEmailToPUTQuery(ins *repository.Instance, reasonID int) ([
 	var sliceOfByte []byte
 	ptrEmptyExchMap := &map[int]dom.Exchange1СErrorsStruct{} // в мапе получаем id отправляемой строки и attempt_count
 
-	usersToExchangeSlice, ptrExchMap, err := ins.GetAllUsersToExchange(reasonID)
+	// usersToExchangeSlice - все полные данные о user-е
+	// ptrExchMap - № строки таблицы exchanges + {userGuid, attemptCount} - в нее будем принимать ответ от 1С
+	usersToExchangeSlice := make([]dom.User, 0)
+	// вначале получим список guid-ов нужных user-ов
+	userGuidExchangeSlice, ptrExchMap, err := ins.GetAllUsersToExchange(reasonID)
 	if err != nil {
-		log.Error("getUsersArrayWithEmailToPUTQuery", err)
+		log.Error("handlers.getUsersArrayWithEmailToPUTQuery: ошибка при получении списка guid-ов: ", err)
+		return sliceOfByte, ptrEmptyExchMap, usersToExchangeSlice, err // пустой
+	}
+	// теперь получим список user-ов со всеми атрибутами по их guid-ам
+	usersToExchangeSlice, err = ins.GetCastomUserListAllAttributes(userGuidExchangeSlice)
+	if err != nil {
+		log.Error("handlers.getUsersArrayWithEmailToPUTQuery: ошибка при получении списка user-ов:", err)
 		return sliceOfByte, ptrEmptyExchMap, usersToExchangeSlice, err // пустой
 	}
 	if len(usersToExchangeSlice) == 0 {
@@ -39,22 +50,23 @@ func getUsersArrayWithEmailToPUTQuery(ins *repository.Instance, reasonID int) ([
 
 	sliceOfByte, err = json.Marshal(usersToExchangeArray)
 	if err != nil {
-		log.Error("marshal usersToExchangeArray error", err)
+		log.Error("handlers.getUsersArrayWithEmailToPUTQuery: marshal usersToExchangeArray error", err)
 		return sliceOfByte, ptrEmptyExchMap, usersToExchangeSlice, err // пустой
 	}
 
 	return sliceOfByte, ptrExchMap, usersToExchangeSlice, nil
 }
 
-// функция записывает в БД (таблицу "exchanges") результат выгрузки в 1С:CreateUser и 1С:ЗУП (о записанных email)
+// функция подготавливает запись в БД (таблицу "exchanges") результат выгрузки в 1С:CreateUser и 1С:ЗУП (о записанных email)
 // если до 1С:CreateUser не достучались (body пустой), то во все выгруженные строки записываем ошибку и инкрементируем attempt_count
 // если из 1С:CreateUser получен не пустой body, то читаем его - какие-то строки будут "Success", а какие-то с ошибкой
 func putRequestFrom1CLoadingPrepare(ins *repository.Instance, body []byte, exMap *map[int]dom.Exchange1СErrorsStruct, errorStr string) {
 	var mapFrom1C map[string]string = map[string]string{}
 	if len(body) > 0 {
-		// получаемая из 1С структура ответа (хардкордная, описание здесь -
+		// получаемая из 1С структура ответа (описание здесь -
 		// http://wiki.vodokanal-nn.ru/bin/view/ОПП%20-%20Инструкции%20для%20разработчиков/Не%201С/Master%20Data/Интеграции/MD%20--%3E%201С%3ACreateUser/Автоматическое%20создание%20пользователей/):
-		var mapArrFrom1C map[string]map[string]string = map[string]map[string]string{}
+		var mapArrFrom1C map[string][]dom.Response1CUserStatusStruct = map[string][]dom.Response1CUserStatusStruct{}
+
 		err := json.Unmarshal(body, &mapArrFrom1C)
 		if err != nil {
 			errStr := fmt.Sprintf("unmarshal putRequestFrom1CLoadingSwitch error: не удалось разобрать строку, полученную из 1С, по причине: %v", err)
@@ -62,15 +74,26 @@ func putRequestFrom1CLoadingPrepare(ins *repository.Instance, body []byte, exMap
 			repository.SendEmailTo1CAdmins(ins, errStr) // критичная ошибка, нужно отслеживать - отправляем администратору
 			return
 		}
-		var ok bool
-		mapFrom1C, ok = mapArrFrom1C[repository.Array1Cname]
+		sliceFrom1C, ok := mapArrFrom1C[repository.Array1Cname]
 		if !ok {
 			errStr := "putRequestFrom1CLoadingSwitch error: не удалось разобрать map-у, полученную из 1С, по причине: не найден ключ UsersStatus"
 			log.Error(errStr)
 			repository.SendEmailTo1CAdmins(ins, errStr) // критичная ошибка, нужно отслеживать - отправляем администратору
 			return
 		}
+
+		// для O1 в дальнейшей обработке пересоберём slice в мапу
+		for _, v := range sliceFrom1C {
+			if _, ok := mapFrom1C[v.UserGuid]; !ok {
+				mapFrom1C[v.UserGuid] = v.Status
+			}
+		}
+		if len(mapFrom1C) > 0 {
+			go utils.SendEmailTo1CAdminsRespCode200(ins, mapFrom1C)
+		}
 	}
+
+	// теперь запишем подготовленные данные (mapFrom1C) в БД (в таблицу "exchanges")
 	putRequestFrom1CLoading(ins, mapFrom1C, exMap, errorStr)
 }
 
@@ -92,7 +115,7 @@ func putRequestFrom1CLoading(ins *repository.Instance, mapFrom1C map[string]stri
 		//--------------------------
 		curStatus := mapFrom1C[v.UserGUID] // из 1С-ной мапы получим статус по guid-у user-а. Если не нашлость, то curStatus будет = ""
 		if len(curStatus) > 0 {
-			if curStatus == repository.RowStatusSuccess {
+			if curStatus == repository.StatusSuccess {
 				errorStr = repository.Response200ok
 			} else {
 				errorStr = curStatus

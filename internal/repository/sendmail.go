@@ -46,13 +46,6 @@ type sendMail struct {
 
 func SendMailToRecipient(to []string, BccAdmin, subject, body, attachment string) error {
 
-	// cfg := &dom.Config{}
-	// cfg.MailUser = ReadConfig("mail.user")
-	// cfg.MailPassword = ReadConfig("mail.password")
-	// cfg.MailHost = ReadConfig("mail.host")
-	// cfg.MailPort = ReadConfig("mail.port")
-	// cfg.MailFrom = ReadConfig("mail.from")
-
 	cfg := GetCfg()
 
 	curPort, _ := strconv.Atoi(cfg.MailPort)
@@ -67,7 +60,7 @@ func SendMailToRecipient(to []string, BccAdmin, subject, body, attachment string
 
 	body = body + "\n" +
 		"---------- \n" +
-		"Your notifications center"
+		"Your notification center"
 
 	m.SetBody("text/plain", body)
 	if attachment != "" {

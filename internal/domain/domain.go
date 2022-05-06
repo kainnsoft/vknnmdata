@@ -107,68 +107,8 @@ type Pshr struct {
 	PshrId    string `json:"pshrId"`
 	PshrDescr string `json:"pshrDescr"`
 }
-type Departaments struct {
-	Departaments []Departament `json:"departaments"`
-}
 
-type Departament struct {
-	DepartamentGUID        string   `json:"departamentGuid"`
-	DepartamentDescr       string   `json:"departamentDescr"`
-	DepartamentParentGUID  string   `json:"departamentParentGuid"`
-	DepartamentIdZUP       string   `json:"departamentId"`
-	DepartamentParentIdZUP string   `json:"departamentParentId"`
-	DepartamentNotUsedFrom CastDate `json:"dateClose"`
-}
 type EmplCurrentState struct {
 	StateName string   `json:"stateName"`
 	DateFrom  CastDate `json:"dateFrom"`
 }
-
-//--------------------------------------------
-// тип для мапинга get-запросов по пользователям
-type EmployeeFilterData struct {
-	Name  string `mapper:"name" json:"name"`
-	Tabno string `mapper:"tabno" json:"tabno"`
-}
-
-//--------------------------------------------
-// Инициализация обмена:
-type ExchangeStruct struct {
-	ExchangeId uint   `json:"exID"`
-	BaseID     uint   `json:"baseID"`
-	ReasonID   uint   `json:"reasonID"`
-	RowData    string `json:"rowData"`
-}
-
-// структура для записи ошибки (или "ok") обмена, когда отправляем данные для записи в 1С (в таблицу exchanges)
-// UserGUID - guid user-а (поле rowdata таблицы)
-// AttemptCount  -количество попыток обмена до текущего (сколько раз уже пробовали выгружать) (поле attempt_count таблицы)
-type Exchange1СErrorsStruct struct {
-	UserGUID     string `json:"userGuid"`
-	AttemptCount int    `json:"attemptCount"`
-}
-
-//--------------------------------------------
-// Шаблон дней недели для организации поиска ДР:
-type NextWeekStruct struct {
-	Monday    string
-	Tuesday   string
-	Wednesday string
-	Thursday  string
-	Friday    string
-	Saturday  string
-	Sunday    string
-}
-
-//*************************************************************************************
-//Устаревшее, нужно вывести из оборота:
-// type UsersWithEmail struct {
-// 	Users []UserWithEmail `json:"users"`
-// }
-// type UserWithEmail struct {
-// 	UserGUID string `json:"userGuid"`
-// 	UserName string `json:"userName"`
-// 	UserID   string `json:"userId"`
-// 	//UserBirthday string `json:"UserBirthday"`
-// 	UserEmail string `json:"userEmail"`
-// }

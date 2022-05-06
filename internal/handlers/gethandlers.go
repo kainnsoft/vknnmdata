@@ -33,7 +33,7 @@ func openLdapConn() error {
 }
 
 func PingMD() string {
-	return "Hello, I'm really MD!!!"
+	return "Hello, I'm really MD!"
 }
 
 func ZupPing(Body io.ReadCloser) (string, error) {

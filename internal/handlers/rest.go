@@ -342,10 +342,14 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 		var usersToExchangeSlice []dom.User // для формирования письма
 		body := make([]byte, 0)
 
-		// (после успешной/не успешной загрузки в 1С:CreateUser), отправим log админам 1С:
+		// (после успешной/не успешной загрузки в 1С:CreateUser), отправим log админам 1С,
+		// 	если есть ошибка или ответ от 1С <> 200, а если ответ от 1С = 200, то готовить письмо админам будем в другом месте.
+		errorCode := 0
 		defer func() {
 			if len(usersToExchangeSlice) > 0 {
-				go utils.SendEmailTo1CAdmins(ins, usersToExchangeSlice, errorString)
+				if errorCode != 200 {
+					go utils.SendEmailTo1CAdminsOtherErrors(ins, usersToExchangeSlice, errorString)
+				}
 			}
 		}()
 
@@ -356,6 +360,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: при выборке данных к обмену произошла ошибка: " + err.Error()
 			log.Info(errorString)
 			http.Error(w, errorString, 500)
+			errorCode = 500
 			return // нет данных к обмену
 		}
 		if len(jsonSliceOfByte) == 0 {
@@ -363,29 +368,34 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			log.Info(errorString)
 			http.Error(w, errorString, http.StatusNoContent)
 			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 204")
+			errorCode = 204
 			return
 		}
 
 		// готовим запрос в 1С:CreateUser
-		req, err := http.NewRequest("PUT", repository.GetPutTo1CCreateUserAdress(), bytes.NewBuffer(jsonSliceOfByte))
+		reqAdress := repository.GetPutTo1CCreateUserAdress()
+		req, err := http.NewRequest("PUT", reqAdress, bytes.NewBuffer(jsonSliceOfByte))
 		if err != nil {
 			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: http.NewRequest error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, 400)
 			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 400")
+			errorCode = 400
 			return
 		}
+		req.SetBasicAuth(repository.GetPutTo1CCreateUserLogin(), repository.GetPutTo1CCreateUserPass()) // TODO перенести в config
 		req.Header.Set("X-Custom-Header", "mdrequest")
 		req.Header.Set("Content-Type", "application/json")
 
 		// отправляем запрос
-		client := http.Client{Timeout: client1CTimeout * time.Second}
+		client := http.Client{Timeout: client1CTimeout * 10000 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
 			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts client.Do(req) error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, http.StatusForbidden) // 403
 			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 403")
+			errorCode = 403
 			return
 		}
 		defer resp.Body.Close()
@@ -397,6 +407,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			log.Error(errorString)
 			http.Error(w, errorString, http.StatusForbidden) // 403
 			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 403")
+			errorCode = 403
 			return
 		}
 
@@ -408,6 +419,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			w.Write([]byte("1C:CreateUser is not available"))
 			http.NotFound(w, r)
 			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString)
+			errorCode = 404
 			return
 		} else if resp.StatusCode == 500 {
 			errorString = "rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: 500 Internal server error"
@@ -416,6 +428,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			//w.Write([]byte("500 Internal server error"))
 			http.Error(w, "500 Internal server error", 500)
 			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString)
+			errorCode = 500
 			return
 		} else if resp.StatusCode != 200 {
 			respError := fmt.Errorf("rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: %v error descr: %v", resp.Status, string(body))
@@ -423,13 +436,14 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			log.Error(errorString)
 			http.Error(w, resp.Status, resp.StatusCode)
 			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString)
+			errorCode = 1
 			return
 		}
 
 		log.Info("rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: %d users have sent to 1C:CreateUser for accountings; resp.StatusCode: %d", len(jsonSliceOfByte), resp.StatusCode)
 		// если до сюда дошли, то обмен состоялся. Запишем это в табл. "exchanges"
-
-		go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, repository.Response200ok)
+		errorCode = 200
+		go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, repository.Response200ok) //// TODO вернуть go !!!!!!!!!!!!!!!!!
 	}
 }
 

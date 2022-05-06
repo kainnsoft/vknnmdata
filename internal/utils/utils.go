@@ -53,21 +53,21 @@ func SendEmailToBuch(ins *repository.Instance) error {
 	return nil
 }
 
-// Отправка сообщений админам 1С о необходимости промониторить работу по автоматическому созданию пользователей:
-func SendEmailTo1CAdmins(ins *repository.Instance, usersToExchangeSlice []domain.User, strInErr string) {
+// Отправка сообщений админам 1С о необходимости промониторить работу по автоматическому созданию пользователей (если ответ от 1С != 200):
+func SendEmailTo1CAdminsOtherErrors(ins *repository.Instance, usersToExchangeSlice []domain.User, strInErr string) {
 	// адресаты
 	recipients, err := ins.GetUserEmailsByNotificationsTypes(3) // notification_type = 'В 1C:CreateUser о новом user-е с email', id = 3
 	if err != nil {
-		log.Error("notifications handlers.SendEmailTo1CAdmins GetRecipients error: %v", err)
+		log.Error("notifications utils.SendEmailTo1CAdminsOtherErrors GetRecipients error: %v", err)
 	}
 	// скрытая копия
 	admins, err := ins.GetUserEmailsByNotificationsTypes(1)
 	if err != nil {
-		log.Error("notifications handlers.SendEmailTo1CAdmins GetBccAdmin error: %v", err)
+		log.Error("notifications utils.SendEmailTo1CAdminsOtherErrors GetBccAdmin error: %v", err)
 	}
 	bccAdmin := admins[0]
 	if bccAdmin == "" {
-		log.Error("notifications handlers.SendEmailTo1CAdmins GetBccAdmin error: no bccAdmin: %v", err)
+		log.Error("notifications utils.SendEmailTo1CAdminsOtherErrors GetBccAdmin error: no bccAdmin: %v", err)
 	}
 
 	// тема
@@ -88,10 +88,61 @@ func SendEmailTo1CAdmins(ins *repository.Instance, usersToExchangeSlice []domain
 	// отправка
 	err = repository.SendMailToRecipient(recipients, bccAdmin, subject, body, "")
 	if err != nil {
-		log.Error("notifications handlers.SendEmailTo1CAdmins SendMailToRecipient error: %v", err)
+		log.Error("notifications utils.SendEmailTo1CAdminsOtherErrors SendMailToRecipient error: %v", err)
 	}
 
-	log.Info("notifications handlers.SendEmailTo1CAdmins OK")
+	log.Info("notifications utils.SendEmailTo1CAdminsOtherErrors OK")
+}
+
+// Отправка сообщений админам 1С о необходимости промониторить работу по автоматическому созданию пользователей (если ответ от 1С == 200):
+// userFrom1CStatusMap собрана из domain.Response1CUserStatusStruct - [UserGuid]Status
+func SendEmailTo1CAdminsRespCode200(ins *repository.Instance, userFrom1CStatusMap map[string]string) {
+	// адресаты
+	recipients, err := ins.GetUserEmailsByNotificationsTypes(3) // notification_type = 'В 1C:CreateUser о новом user-е с email', id = 3
+	if err != nil {
+		log.Error("notifications utils.SendEmailTo1CAdminsRespCode200 GetRecipients error: %v", err)
+	}
+	// скрытая копия
+	admins, err := ins.GetUserEmailsByNotificationsTypes(1)
+	if err != nil {
+		log.Error("notifications utils.SendEmailTo1CAdminsRespCode200 GetBccAdmin error: %v", err)
+	}
+	bccAdmin := admins[0]
+	if bccAdmin == "" {
+		log.Error("notifications utils.SendEmailTo1CAdminsRespCode200 GetBccAdmin error: no bccAdmin: %v", err)
+	}
+
+	// тема
+	subject := "В 1C:CreateUser о новом user-е с email"
+
+	curUserGuidSlice := make([]string, 0, len(userFrom1CStatusMap))
+	for k := range userFrom1CStatusMap {
+		curUserGuidSlice = append(curUserGuidSlice, k)
+	}
+	// перед формированием тела соберем данные о usere:
+	userSlice, err := ins.GetUsersBySliceOfGUID(curUserGuidSlice)
+	if err != nil {
+		log.Error("notifications utils.SendEmailTo1CAdminsRespCode200 GetUsersBySliceOfGUID error: %v", err)
+	}
+
+	// тело
+	body := "Статусы выгрузки пользователей для автоматического создания \n"
+	for _, user := range userSlice {
+		respStr := "MD. Информация не доступна."
+		if v, ok := userFrom1CStatusMap[user.UserGUID]; ok {
+			respStr = v
+		}
+		body = body + "-------------------------- \n"
+		body = body + "        " + user.UserName + " (код = " + user.UserID + ")" + "   |   " + respStr + " \r\n"
+	}
+
+	// отправка
+	err = repository.SendMailToRecipient(recipients, bccAdmin, subject, body, "")
+	if err != nil {
+		log.Error("notifications utils.SendEmailTo1CAdminsRespCode200 SendMailToRecipient error: %v", err)
+	}
+
+	log.Info("notifications utils.SendEmailTo1CAdminsRespCode200 OK")
 }
 
 //
