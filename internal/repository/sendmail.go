@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	config "mdata/configs"
 	log "mdata/pkg/logging"
 
 	"github.com/go-mail/mail"
@@ -46,7 +47,7 @@ type sendMail struct {
 
 func SendMailToRecipient(to []string, BccAdmin, subject, body, attachment string) error {
 
-	cfg := GetCfg()
+	cfg := config.GetCfg()
 
 	curPort, _ := strconv.Atoi(cfg.MailPort)
 	d := mail.Dialer{Host: cfg.MailHost, Port: curPort, StartTLSPolicy: mail.NoStartTLS}
@@ -74,7 +75,7 @@ func SendMailToRecipient(to []string, BccAdmin, subject, body, attachment string
 	return nil
 }
 
-func SendEmailTo1CAdmins(ins *Instance, body string) error {
+func SendEmailTo1CAdmins(ins *PostgreInstance, body string) error {
 	admins, err := ins.GetUserEmailsByNotificationsTypes(1)
 	if err != nil {
 		log.Error("SendEmailTo1CAdmins GetBccAdmin error: %v", err)
@@ -94,7 +95,7 @@ func SendMailToRecipient_old____________(buchFilePath string, to []string) {
 	// cfg.MailPort = ReadConfig("mail.port")
 	// cfg.MailFrom = ReadConfig("mail.from")
 
-	cfg := GetCfg()
+	cfg := config.GetCfg()
 	//var mail Mail
 	mail := &sendMail{user: "", //cfg.MailUser,
 		password: "", //cfg.MailPassword,

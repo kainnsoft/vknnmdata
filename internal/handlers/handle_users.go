@@ -12,7 +12,7 @@ import (
 )
 
 // Функция для записи одного user-а в базу, если не нашли такого по GUID, либо обновление, если нашли:
-func handleSingleUserForCRUD(ins *repository.Instance, currEmail string, usr *dom.User) (string, error) {
+func handleSingleUserForCRUD(ins *repository.PostgreInstance, currEmail string, usr *dom.User) (string, error) {
 
 	var str string
 	var err error
@@ -109,7 +109,7 @@ func handleSingleUserForCRUD(ins *repository.Instance, currEmail string, usr *do
 }
 
 // проверим, нужно ли обновлять пользователя исходя из записи о нем в DB
-func checkSingleUserForCRUD(ins *repository.Instance, usr *dom.User, currEmail string) (int, error) {
+func checkSingleUserForCRUD(ins *repository.PostgreInstance, usr *dom.User, currEmail string) (int, error) {
 
 	// найдем пользователя в DB
 	gettingUser, err := ins.SelectUserByGUID(usr.UserGUID)
@@ -147,7 +147,7 @@ func checkSingleUserForCRUD(ins *repository.Instance, usr *dom.User, currEmail s
 	return 1, nil // нашли, не нужно обновлять пользователя
 }
 
-func addUser(ins *repository.Instance, currEmail string, usr *dom.User) (string, error) {
+func addUser(ins *repository.PostgreInstance, currEmail string, usr *dom.User) (string, error) {
 	str, err := ins.AddUserToDB(usr, currEmail)
 	if err != nil {
 		return str, err
@@ -157,7 +157,7 @@ func addUser(ins *repository.Instance, currEmail string, usr *dom.User) (string,
 	return str, err
 }
 
-func updateUser(ins *repository.Instance, currEmail string, usr *dom.User) (string, error) {
+func updateUser(ins *repository.PostgreInstance, currEmail string, usr *dom.User) (string, error) {
 	str, err := ins.UpdateUserInDB(usr, currEmail)
 	if err != nil {
 		return str, err
@@ -169,7 +169,7 @@ func updateUser(ins *repository.Instance, currEmail string, usr *dom.User) (stri
 //------------------------------------------------------------
 // все аттрибуты
 // Отдаем данные всех user-ов, сотрудники которых работают (актуальны)  (все аттрибуты)
-func GetActEmployeesAllAttributes(ins *repository.Instance) ([]byte, error) {
+func GetActEmployeesAllAttributes(ins *repository.PostgreInstance) ([]byte, error) {
 	// пока ВСЕ (не один) из базы:
 	allEmployeesData, err := ins.GetAllActualUsersAllAttributes()
 	if err != nil {
@@ -188,7 +188,7 @@ func GetActEmployeesAllAttributes(ins *repository.Instance) ([]byte, error) {
 }
 
 // Отдаем данные всех user-ов, сотрудники которых уволены  (все аттрибуты)
-func GetFiredEmployeesUsersAllAttributes(ins *repository.Instance, dateFrom time.Time) ([]byte, error) {
+func GetFiredEmployeesUsersAllAttributes(ins *repository.PostgreInstance, dateFrom time.Time) ([]byte, error) {
 	// пока ВСЕ (не один) из базы:
 	allEmployeesData, err := ins.GetUsersFiredFrom(dateFrom)
 	if err != nil {
@@ -207,7 +207,7 @@ func GetFiredEmployeesUsersAllAttributes(ins *repository.Instance, dateFrom time
 }
 
 // вернём массив только работающих пользователей с подходящими кодами - табельными номерами (?tabno=8337) все атрибуты:
-func GetUsersByTabNoAllAttributes(ins *repository.Instance, tabno string) []byte {
+func GetUsersByTabNoAllAttributes(ins *repository.PostgreInstance, tabno string) []byte {
 	// пока ВСЕ (не один) из базы:
 	usersByTabNoSlice, err := ins.GetActualUsersByTabNoAllAttributes(tabno)
 	if err != nil {
@@ -226,7 +226,7 @@ func GetUsersByTabNoAllAttributes(ins *repository.Instance, tabno string) []byte
 }
 
 // вернём массив только работающих пользователей с подходящими ФИО (?name=захаро) все атрибуты:
-func GetUsersByNameAllAttributes(ins *repository.Instance, userName string) []byte {
+func GetUsersByNameAllAttributes(ins *repository.PostgreInstance, userName string) []byte {
 	// пока ВСЕ (не один) из базы:
 	usersByUserNameSlice, err := ins.GetActualUsersByUserNameAllAttributes(userName)
 	if err != nil {
@@ -247,7 +247,7 @@ func GetUsersByNameAllAttributes(ins *repository.Instance, userName string) []by
 //------------------------------------------------------------
 // облегчённые аттрибуты
 // вернём массив только работающих пользователей с подходящими кодами - табельными номерами (?tabno=8337) облегчённые атрибуты:
-func GetUsersByTabNoLightVersionAttributes(ins *repository.Instance, tabno string) []byte {
+func GetUsersByTabNoLightVersionAttributes(ins *repository.PostgreInstance, tabno string) []byte {
 	// пока ВСЕ (не один) из базы:
 	usersByTabNoSlice, err := ins.GetActualUsersByTabNoLightVersionAttributes(tabno)
 	if err != nil {
@@ -266,7 +266,7 @@ func GetUsersByTabNoLightVersionAttributes(ins *repository.Instance, tabno strin
 }
 
 // вернём массив только работающих пользователей с подходящими ФИО (?name=захаро) облегчённые атрибуты:
-func GetUsersByNameLightVersionAttributes(ins *repository.Instance, userName string) []byte {
+func GetUsersByNameLightVersionAttributes(ins *repository.PostgreInstance, userName string) []byte {
 	// пока ВСЕ (не один) из базы:
 	usersByUserNameSlice, err := ins.GetActualUsersByUserNameLightVersionAttributes(userName)
 	if err != nil {

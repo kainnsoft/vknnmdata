@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func handleEmployeePshrForCRUD(ins *repository.Instance, usr *dom.User, empl *dom.Employee) error {
+func handleEmployeePshrForCRUD(ins *repository.PostgreInstance, usr *dom.User, empl *dom.Employee) error {
 	var err error
 
 	selectedEmployeePshrCRUDStatus, err := checkEmployeePshrForCRUD(ins, usr.UserGUID, empl)
@@ -41,7 +41,7 @@ func handleEmployeePshrForCRUD(ins *repository.Instance, usr *dom.User, empl *do
 }
 
 // проверим нужно ли обновить ПШР сотрудника:
-func checkEmployeePshrForCRUD(ins *repository.Instance, userGuid string, emp *dom.Employee) (int, error) {
+func checkEmployeePshrForCRUD(ins *repository.PostgreInstance, userGuid string, emp *dom.Employee) (int, error) {
 	oldEmplPshr, err := ins.GetEmplPshrByEmplGUID(emp.EmployeeGUID)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
@@ -72,7 +72,7 @@ func checkEmployeePshrForCRUD(ins *repository.Instance, userGuid string, emp *do
 }
 
 // добавим ПШР одного сотрудника:
-func addEmployeePshr(ins *repository.Instance, empl *dom.Employee) (string, error) {
+func addEmployeePshr(ins *repository.PostgreInstance, empl *dom.Employee) (string, error) {
 	str, err := ins.AddEmplPshrToDB(empl)
 	if err != nil {
 		return str, fmt.Errorf("handlers.AddEmplPshrToDB error: %v", err)
@@ -81,7 +81,7 @@ func addEmployeePshr(ins *repository.Instance, empl *dom.Employee) (string, erro
 }
 
 // удалим ПШР сотрудника:
-func deleteEmployeePshr(ins *repository.Instance, oldEmplPshrGUID string) (string, error) {
+func deleteEmployeePshr(ins *repository.PostgreInstance, oldEmplPshrGUID string) (string, error) {
 	str, err := ins.DeleteEmplPshrFromDB(oldEmplPshrGUID)
 	if err != nil {
 		return str, fmt.Errorf("handlers.deleteEmployeePshr error: %v", err)
@@ -91,7 +91,7 @@ func deleteEmployeePshr(ins *repository.Instance, oldEmplPshrGUID string) (strin
 }
 
 // обновим ПШР сотрудника:
-func updateEmployeePshr(ins *repository.Instance, empl *dom.Employee) (string, error) {
+func updateEmployeePshr(ins *repository.PostgreInstance, empl *dom.Employee) (string, error) {
 	str, err := ins.UpdateEmplPshrToDB(empl)
 	if err != nil {
 		return str, fmt.Errorf("handlers.updateEmployeePshr error: %v", err)

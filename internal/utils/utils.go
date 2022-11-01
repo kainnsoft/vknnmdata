@@ -13,7 +13,7 @@ import (
 )
 
 // Отправка log-а в бухгалтерию:
-func SendEmailToBuch(ins *repository.Instance) error {
+func SendEmailToBuch(ins *repository.PostgreInstance) error {
 	t := time.Now()
 	if t.Weekday() == time.Friday {
 		// адресаты
@@ -54,7 +54,7 @@ func SendEmailToBuch(ins *repository.Instance) error {
 }
 
 // Отправка сообщений админам 1С о необходимости промониторить работу по автоматическому созданию пользователей (если ответ от 1С != 200):
-func SendEmailTo1CAdminsOtherErrors(ins *repository.Instance, usersToExchangeSlice []domain.User, strInErr string) {
+func SendEmailTo1CAdminsOtherErrors(ins *repository.PostgreInstance, usersToExchangeSlice []domain.User, strInErr string) {
 	// адресаты
 	recipients, err := ins.GetUserEmailsByNotificationsTypes(3) // notification_type = 'В 1C:CreateUser о новом user-е с email', id = 3
 	if err != nil {
@@ -96,7 +96,7 @@ func SendEmailTo1CAdminsOtherErrors(ins *repository.Instance, usersToExchangeSli
 
 // Отправка сообщений админам 1С о необходимости промониторить работу по автоматическому созданию пользователей (если ответ от 1С == 200):
 // userFrom1CStatusMap собрана из domain.Response1CUserStatusStruct - [UserGuid]Status
-func SendEmailTo1CAdminsRespCode200(ins *repository.Instance, userFrom1CStatusMap map[string]string) {
+func SendEmailTo1CAdminsRespCode200(ins *repository.PostgreInstance, userFrom1CStatusMap map[string]string) {
 	// адресаты
 	recipients, err := ins.GetUserEmailsByNotificationsTypes(3) // notification_type = 'В 1C:CreateUser о новом user-е с email', id = 3
 	if err != nil {

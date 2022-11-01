@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func InitializeRoutes(mux *http.ServeMux, ins *repository.Instance) {
+func InitializeRoutes(mux *http.ServeMux, ins *repository.PostgreInstance) {
 	// ping - метод. Получим доступность базы 1С:ЗУП
 	mux.HandleFunc("/from-zup/ping/", handlers.PingZup)
 
@@ -45,7 +45,7 @@ func InitializeRoutes(mux *http.ServeMux, ins *repository.Instance) {
 	mux.HandleFunc("/", handlers.PingMasterData)
 
 	// ping - метод. Доступность DB
-	mux.HandleFunc("/db/ping/", handlers.PingDB(ins))
+	mux.Handle("/db/ping/", handlers.PingDB(ins))
 	//------------------------------------------------------------------
 	// все аттрибуты
 	// отдать всех работающих (актуальных) физ.лиц (все аттрибуты)

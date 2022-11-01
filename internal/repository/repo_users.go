@@ -14,7 +14,7 @@ type UsersModeller interface {
 }
 
 // все user-ы в базе, у которых больше одного сотрудника и которые работают (хотя бы один сотрудник имеет статус "Работа")
-func getSeveralEmployesActualUsers(i *Instance) (map[string]int, error) {
+func getSeveralEmployesActualUsers(i *PostgreInstance) (map[string]int, error) {
 	//ctx, cancel := context.WithTimeout(context.Background(), queryTimeout*time.Millisecond)
 	//defer cancel()
 	ctx := context.Background()
@@ -53,7 +53,7 @@ func getSeveralEmployesActualUsers(i *Instance) (map[string]int, error) {
 // 1) Формируем map исключений.
 // 2) Получаем список уволенных (готовый код)
 // 3) Исключаем из п.2 тех, кто есть в п.1
-func (i *Instance) GetUsersFiredFrom(from time.Time) ([]domain.User, error) {
+func (i *PostgreInstance) GetUsersFiredFrom(from time.Time) ([]domain.User, error) {
 	//ctx, cancel := context.WithTimeout(context.Background(), queryTimeout*time.Millisecond)
 	//defer cancel()
 	ctx := context.Background()

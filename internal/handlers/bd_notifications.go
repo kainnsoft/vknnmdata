@@ -56,7 +56,7 @@ func (sl *sendList) SetValue(keyEmail string, value map[string][]domain.User) {
 //********************
 
 // все рассылки делаем до наступления рабочего дня
-func sendBdNotifications(ins *repository.Instance) {
+func sendBdNotifications(ins *repository.PostgreInstance) {
 	// создаём общий список рассылки. В него будем набивать адресатов и именинников в разрезе периодов
 	commonSendList := newSendList(map[string]map[string][]domain.User{})
 	var wg sync.WaitGroup
@@ -122,7 +122,7 @@ func SendEmail(bccAdmin, recipient, body string) error {
 	return nil
 }
 
-func getBdTomorrow(ins *repository.Instance, csl *sendList) { // каждый день в 8:00
+func getBdTomorrow(ins *repository.PostgreInstance, csl *sendList) { // каждый день в 8:00
 	now := time.Now()
 	tomorrow := now.AddDate(0, 0, 1)
 	layout := "2006-01-02"
@@ -142,7 +142,7 @@ func getBdTomorrow(ins *repository.Instance, csl *sendList) { // каждый д
 	}
 }
 
-func getBdInThreeDays(ins *repository.Instance, csl *sendList) { // каждый день в 8:00
+func getBdInThreeDays(ins *repository.PostgreInstance, csl *sendList) { // каждый день в 8:00
 	now := time.Now()
 	in3Days := now.AddDate(0, 0, 3)
 	layout := "2006-01-02"
@@ -161,7 +161,7 @@ func getBdInThreeDays(ins *repository.Instance, csl *sendList) { // каждый
 	}
 }
 
-func getBdOnNextWeek(ins *repository.Instance, csl *sendList) {
+func getBdOnNextWeek(ins *repository.PostgreInstance, csl *sendList) {
 	now := time.Now()
 	if now.Weekday() == time.Friday { // по пятницам в 8:00
 		nextWeek := utils.GetNextWeekTemplStruct(now)
@@ -181,7 +181,7 @@ func getBdOnNextWeek(ins *repository.Instance, csl *sendList) {
 	}
 }
 
-func getBdOnNextMonth(ins *repository.Instance, csl *sendList) {
+func getBdOnNextMonth(ins *repository.PostgreInstance, csl *sendList) {
 	// TODO
 	now := time.Now()
 	firstOfNextMonth, _ := utils.NextMonth(now)
@@ -224,7 +224,7 @@ func prepareSendLetterToSingleMail(bccAdmin, keyEmail string, mapPeriodOwners ma
 }
 
 // установка пар observer - bd_owner (оповещаемый - о ДР кого будем оповещать)
-func handleSetOOCoupleForBdNotifications(ins *repository.Instance, data []byte) (string, error) {
+func handleSetOOCoupleForBdNotifications(ins *repository.PostgreInstance, data []byte) (string, error) {
 	type bdOwner struct {
 		BdOwnerId string
 	}

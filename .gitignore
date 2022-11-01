@@ -2,3 +2,4 @@
 cmd/app/logs/
 cmd/app/config.yml
 .gitlab-ci.yml
+.env

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	config "mdata/configs"
 	"mdata/internal/domain"
 	log "mdata/pkg/logging"
 
@@ -20,15 +21,15 @@ import (
 const queryTimeout = 100
 
 //Функция для более удобного создания строки подключения к БД
-func NewPoolConfig(cfg *domain.Config) (*pgxpool.Config, error) {
-	connStr := fmt.Sprintf("%s://%s:%s@%s:%s/%s?sslmode=disable&connect_timeout=%d",
+func NewPoolConfig(cfg *config.Config) (*pgxpool.Config, error) {
+	connStr := fmt.Sprintf("%s://%s:%s@%s:%d/%s?sslmode=disable&connect_timeout=%d",
 		"postgres",
-		url.QueryEscape(cfg.DBUsername),
-		url.QueryEscape(cfg.DBPassword),
-		cfg.DBHost,
-		cfg.DBPort,
-		cfg.DataBaseName,
-		cfg.DBTimeout)
+		url.QueryEscape(cfg.Username),
+		url.QueryEscape(cfg.Password),
+		cfg.Host,
+		cfg.Port,
+		cfg.DBName,
+		cfg.ConnTimeout)
 
 	poolConfig, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
@@ -50,13 +51,13 @@ func NewConnection(poolConfig *pgxpool.Config) (*pgxpool.Pool, error) {
 	return conn, nil
 }
 
-// основная структура Instance, которая принимает в зависимость подключение.
+// основная структура PostgreInstance, которая принимает в зависимость подключение.
 // Благодаря этому, мы имеем возможность делать запросы в базу прямо из нашего пакета repository
-type Instance struct {
+type PostgreInstance struct {
 	Db *pgxpool.Pool
 }
 
-func DBPing(i *Instance) (string, error) { // pool *pgxpool.Pool
+func DBPing(i *PostgreInstance) (string, error) { // pool *pgxpool.Pool
 	// Func "Exec" performs query to DB
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout*time.Millisecond)
 	defer cancel()
@@ -72,7 +73,7 @@ func DBPing(i *Instance) (string, error) { // pool *pgxpool.Pool
 // Пользователи  (физ.лица)
 
 // get user by GUID
-func (i *Instance) SelectUserByGUID(userGUID string) (domain.User, error) {
+func (i *PostgreInstance) SelectUserByGUID(userGUID string) (domain.User, error) {
 
 	var usr domain.User = domain.User{}
 
@@ -106,7 +107,7 @@ func (i *Instance) SelectUserByGUID(userGUID string) (domain.User, error) {
 	return usr, nil
 }
 
-func (i *Instance) AddUserToDB(v *domain.User, currEmail string) (string, error) {
+func (i *PostgreInstance) AddUserToDB(v *domain.User, currEmail string) (string, error) {
 	curBirthday := v.UserBirthday.DateToString()
 	commandTag, err := i.Db.Exec(context.Background(), "INSERT INTO users (user_guid, user_name, user_id, user_birthday, email) VALUES ($1, $2, $3, $4, $5);",
 		v.UserGUID,
@@ -123,7 +124,7 @@ func (i *Instance) AddUserToDB(v *domain.User, currEmail string) (string, error)
 	return commandTag.String(), nil
 }
 
-func (i *Instance) UpdateUserInDB(v *domain.User, currEmail string) (string, error) {
+func (i *PostgreInstance) UpdateUserInDB(v *domain.User, currEmail string) (string, error) {
 	curBirthday := v.UserBirthday.DateToString()
 	commandTag, err := i.Db.Exec(context.Background(),
 		"UPDATE users set user_name=$1, user_id=$2, user_birthday=$3, email=$4 where user_guid=$5;",
@@ -141,7 +142,7 @@ func (i *Instance) UpdateUserInDB(v *domain.User, currEmail string) (string, err
 	return commandTag.String(), nil
 }
 
-func (i *Instance) GetAllUsersWithEmail() ([]domain.User, error) {
+func (i *PostgreInstance) GetAllUsersWithEmail() ([]domain.User, error) {
 
 	usersSlice := make([]domain.User, 0)
 
@@ -165,7 +166,7 @@ func (i *Instance) GetAllUsersWithEmail() ([]domain.User, error) {
 }
 
 // вернём всех пользователей (физ.лиц) и уволенные тоже:
-func (i *Instance) GetAllUsersFromDB() ([]domain.User, error) {
+func (i *PostgreInstance) GetAllUsersFromDB() ([]domain.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout*time.Millisecond)
 	defer cancel()
 
@@ -195,7 +196,7 @@ func (i *Instance) GetAllUsersFromDB() ([]domain.User, error) {
 }
 
 // вернём массив пользователей с подходящими кодами (табельными номерами):
-func (i *Instance) GetUsersByTabNo(tabno string) ([]domain.User, error) {
+func (i *PostgreInstance) GetUsersByTabNo(tabno string) ([]domain.User, error) {
 
 	const usrs_query = "select user_guid, user_name, user_id, user_birthday, email from users where user_id like $1;"
 
@@ -223,7 +224,7 @@ func (i *Instance) GetUsersByTabNo(tabno string) ([]domain.User, error) {
 }
 
 // вернём массив всех(в т.ч. уволенных) пользователей с подходящими ФИО:
-func (i *Instance) GetUsersByUserName(userName string) ([]domain.User, error) {
+func (i *PostgreInstance) GetUsersByUserName(userName string) ([]domain.User, error) {
 
 	const usrs_query = "select user_guid, user_name, user_id, user_birthday, email from users where user_name ilike $1;"
 
@@ -251,7 +252,7 @@ func (i *Instance) GetUsersByUserName(userName string) ([]domain.User, error) {
 }
 
 // get users by slice of GUID
-func (i *Instance) GetUsersBySliceOfGUID(userGUIDSlice []string) ([]domain.User, error) {
+func (i *PostgreInstance) GetUsersBySliceOfGUID(userGUIDSlice []string) ([]domain.User, error) {
 
 	usr := make([]domain.User, 0, len(userGUIDSlice))
 
@@ -279,7 +280,7 @@ func (i *Instance) GetUsersBySliceOfGUID(userGUIDSlice []string) ([]domain.User,
 }
 
 // вернём список пользователей (физ.лиц) по заданному списку guid-ов все атрибуты:
-func (i *Instance) GetCastomUserListAllAttributes(userGUIDSlice []string) ([]domain.User, error) {
+func (i *PostgreInstance) GetCastomUserListAllAttributes(userGUIDSlice []string) ([]domain.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout*time.Millisecond)
 	defer cancel()
 
@@ -360,7 +361,7 @@ func handlRowsAllAttributes(rows pgx.Rows) []domain.User {
 }
 
 // вернём всех работающих пользователей (физ.лиц) все атрибуты:
-func (i *Instance) GetAllActualUsersAllAttributes() ([]domain.User, error) {
+func (i *PostgreInstance) GetAllActualUsersAllAttributes() ([]domain.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout*time.Millisecond)
 	defer cancel()
 
@@ -384,7 +385,7 @@ func (i *Instance) GetAllActualUsersAllAttributes() ([]domain.User, error) {
 }
 
 // вернём всех работающих пользователей (физ.лиц), у которых есть email-ы (все аттрибуты):
-func (i *Instance) GetAllActualEmailUsersAllAttributes() ([]domain.User, error) {
+func (i *PostgreInstance) GetAllActualEmailUsersAllAttributes() ([]domain.User, error) {
 
 	const usrs_query = commonQueryAllAttributes + " where state_descr ilike $1 and email<>'';"
 
@@ -406,7 +407,7 @@ func (i *Instance) GetAllActualEmailUsersAllAttributes() ([]domain.User, error) 
 }
 
 // вернём массив только работающих пользователей с подходящими кодами - табельными номерами (?tabno=8337) все атрибуты:
-func (i *Instance) GetActualUsersByTabNoAllAttributes(tabno string) ([]domain.User, error) {
+func (i *PostgreInstance) GetActualUsersByTabNoAllAttributes(tabno string) ([]domain.User, error) {
 
 	const usrs_query = commonQueryAllAttributes + " where user_id ilike $1 and state_descr ilike $2;"
 
@@ -428,7 +429,7 @@ func (i *Instance) GetActualUsersByTabNoAllAttributes(tabno string) ([]domain.Us
 }
 
 // вернём массив только работающих пользователей с подходящими ФИО (?name=захаро) все атрибуты:
-func (i *Instance) GetActualUsersByUserNameAllAttributes(userName string) ([]domain.User, error) {
+func (i *PostgreInstance) GetActualUsersByUserNameAllAttributes(userName string) ([]domain.User, error) {
 
 	const usrs_query = commonQueryAllAttributes + " where user_name ilike $1 and state_descr ilike $2;"
 
@@ -538,7 +539,7 @@ func handlRowsLightVersionAttributesToMap(rows pgx.Rows) map[string]domain.User 
 }
 
 // вернём всех работающих пользователей (физ.лиц) облегчённые атрибуты:
-func (i *Instance) GetAllActualUsersLightVersionAttributes() ([]domain.User, error) {
+func (i *PostgreInstance) GetAllActualUsersLightVersionAttributes() ([]domain.User, error) {
 
 	const usrs_query = commonQueryLightVersionAttributes + " where state_descr ilike $1;"
 
@@ -560,7 +561,7 @@ func (i *Instance) GetAllActualUsersLightVersionAttributes() ([]domain.User, err
 }
 
 // вернём всех работающих пользователей (физ.лиц), у которых есть email-ы (облегчённые аттрибуты):
-func (i *Instance) GetAllActualEmailUsersLightVersionAttributes() ([]domain.User, error) {
+func (i *PostgreInstance) GetAllActualEmailUsersLightVersionAttributes() ([]domain.User, error) {
 
 	const usrs_query = commonQueryLightVersionAttributes + " where state_descr ilike $1 and email<>'';"
 
@@ -582,7 +583,7 @@ func (i *Instance) GetAllActualEmailUsersLightVersionAttributes() ([]domain.User
 }
 
 // вернём массив только работающих пользователей с подходящими кодами - табельными номерами (?tabno=8337) облегчённые атрибуты:
-func (i *Instance) GetActualUsersByTabNoLightVersionAttributes(tabno string) ([]domain.User, error) {
+func (i *PostgreInstance) GetActualUsersByTabNoLightVersionAttributes(tabno string) ([]domain.User, error) {
 
 	const usrs_query = commonQueryLightVersionAttributes + " where user_id ilike $1 and state_descr ilike $2;"
 
@@ -604,7 +605,7 @@ func (i *Instance) GetActualUsersByTabNoLightVersionAttributes(tabno string) ([]
 }
 
 // вернём массив только работающих пользователей с подходящими ФИО (?name=захаро) облегчённые атрибуты:
-func (i *Instance) GetActualUsersByUserNameLightVersionAttributes(userName string) ([]domain.User, error) {
+func (i *PostgreInstance) GetActualUsersByUserNameLightVersionAttributes(userName string) ([]domain.User, error) {
 
 	const usrs_query = commonQueryLightVersionAttributes + " where user_name ilike $1 and state_descr ilike $2;"
 
@@ -663,7 +664,7 @@ func selectEmployeesWithAttribsByUserGUID(insDB *pgxpool.Pool, parentUserGUID st
 	return empSlice, nil
 }
 
-func (i *Instance) SelectSingleEmployeeWithAttribsByGUID(empGUID string) (*domain.Employee, error) {
+func (i *PostgreInstance) SelectSingleEmployeeWithAttribsByGUID(empGUID string) (*domain.Employee, error) {
 	empl, err := selectSingleEmployeeWithAttribsByGUID(i.Db, empGUID)
 	if err != nil {
 		return new(domain.Employee), err
@@ -726,7 +727,7 @@ func selectSingleEmployeeWithAttribsByGUID(insDB *pgxpool.Pool, empGUID string) 
 	return &emp, nil
 }
 
-func (i *Instance) AddEmployeeToDB(parentUserGUID string, empl *domain.Employee) (string, error) {
+func (i *PostgreInstance) AddEmployeeToDB(parentUserGUID string, empl *domain.Employee) (string, error) {
 
 	commandTag, err := i.Db.Exec(context.Background(),
 		"INSERT INTO employees (employee_guid, employee_user, employee_id, employee_tabno, employee_adress, employment, employee_departament) VALUES ($1, $2, $3, $4, $5, $6, $7);",
@@ -746,7 +747,7 @@ func (i *Instance) AddEmployeeToDB(parentUserGUID string, empl *domain.Employee)
 	return commandTag.String(), nil
 }
 
-func (i *Instance) UpdateEmployeeInDB(parentUserGUID string, empl *domain.Employee) (string, error) {
+func (i *PostgreInstance) UpdateEmployeeInDB(parentUserGUID string, empl *domain.Employee) (string, error) {
 
 	commandTag, err := i.Db.Exec(context.Background(),
 		"UPDATE employees set employee_id=$1, employee_tabno=$2, employee_adress=$3, employment=$4, employee_departament=$5 where employee_user=$6 and employee_guid=$7;",
@@ -768,7 +769,7 @@ func (i *Instance) UpdateEmployeeInDB(parentUserGUID string, empl *domain.Employ
 
 //***************************************************************************************
 // Employee states
-func (i *Instance) SelectEmployeeStateByEmplGUID(emplGUID string) (*domain.EmplCurrentState, error) {
+func (i *PostgreInstance) SelectEmployeeStateByEmplGUID(emplGUID string) (*domain.EmplCurrentState, error) {
 	emplCS, err := SelectEmployeeStateByEmplGUID(i.Db, emplGUID)
 	if err != nil {
 		return new(domain.EmplCurrentState), err
@@ -805,7 +806,7 @@ func SelectEmployeeStateByEmplGUID(insDB *pgxpool.Pool, emplGUID string) (*domai
 	return &empCS, nil
 }
 
-func (i *Instance) AddEmployeeStateToDB(empl *domain.Employee) (string, error) {
+func (i *PostgreInstance) AddEmployeeStateToDB(empl *domain.Employee) (string, error) {
 	const emplCS_insert_query = "INSERT INTO employee_states (employee_guid, state_descr, state_date_from) VALUES ($1, $2, $3);"
 
 	commandTag, err := i.Db.Exec(context.Background(), emplCS_insert_query,
@@ -819,7 +820,7 @@ func (i *Instance) AddEmployeeStateToDB(empl *domain.Employee) (string, error) {
 	return commandTag.String(), nil
 }
 
-func (i *Instance) UpdateEmployeeStateToDB(empl *domain.Employee) (string, error) {
+func (i *PostgreInstance) UpdateEmployeeStateToDB(empl *domain.Employee) (string, error) {
 	const emplCS_update_query = "UPDATE employee_states set state_descr=$1, state_date_from=$2 where employee_guid=$3;"
 
 	commandTag, err := i.Db.Exec(context.Background(), emplCS_update_query,
@@ -835,7 +836,7 @@ func (i *Instance) UpdateEmployeeStateToDB(empl *domain.Employee) (string, error
 
 //***************************************************************************************
 // Positions
-func (i *Instance) GetEmplPositionByEmplGUID(emplGUID string) (*domain.Position, error) {
+func (i *PostgreInstance) GetEmplPositionByEmplGUID(emplGUID string) (*domain.Position, error) {
 	emplPos, err := getEmplPositionByEmplGUID(i.Db, emplGUID)
 	if err != nil {
 		return new(domain.Position), err
@@ -872,7 +873,7 @@ func getEmplPositionByEmplGUID(insDB *pgxpool.Pool, emplGUID string) (*domain.Po
 	return &emplPos, nil
 }
 
-func (i *Instance) AddEmplPositionToDB(empl *domain.Employee) (string, error) {
+func (i *PostgreInstance) AddEmplPositionToDB(empl *domain.Employee) (string, error) {
 	const emplPos_insert_query = "INSERT INTO positions (employee_guid, position_guid, position_descr) VALUES ($1, $2, $3);"
 
 	commandTag, err := i.Db.Exec(context.Background(), emplPos_insert_query,
@@ -886,7 +887,7 @@ func (i *Instance) AddEmplPositionToDB(empl *domain.Employee) (string, error) {
 	return commandTag.String(), nil
 }
 
-func (i *Instance) UpdateEmplPositionToDB(empl *domain.Employee) (string, error) {
+func (i *PostgreInstance) UpdateEmplPositionToDB(empl *domain.Employee) (string, error) {
 	const emplPos_update_query = "UPDATE positions set position_guid=$1, position_descr=$2 where employee_guid=$3;"
 
 	commandTag, err := i.Db.Exec(context.Background(), emplPos_update_query,
@@ -900,7 +901,7 @@ func (i *Instance) UpdateEmplPositionToDB(empl *domain.Employee) (string, error)
 	return commandTag.String(), nil
 }
 
-func (i *Instance) DeleteEmplPositionFromDB(oldPositionGUID string) (string, error) {
+func (i *PostgreInstance) DeleteEmplPositionFromDB(oldPositionGUID string) (string, error) {
 	const emplPos_delete_query = "DELETE FROM positions where position_guid=$1;"
 
 	commandTag, err := i.Db.Exec(context.Background(), emplPos_delete_query, oldPositionGUID)
@@ -913,7 +914,7 @@ func (i *Instance) DeleteEmplPositionFromDB(oldPositionGUID string) (string, err
 
 //***************************************************************************************
 // pshr_list - позиции штатного расписания
-func (i *Instance) GetEmplPshrByEmplGUID(emplGUID string) (*domain.Pshr, error) {
+func (i *PostgreInstance) GetEmplPshrByEmplGUID(emplGUID string) (*domain.Pshr, error) {
 	emplPshr, err := getEmplPshrByEmplGUID(i.Db, emplGUID)
 	if err != nil {
 		return new(domain.Pshr), err
@@ -950,7 +951,7 @@ func getEmplPshrByEmplGUID(insDB *pgxpool.Pool, emplGUID string) (*domain.Pshr, 
 	return &emplPshr, nil
 }
 
-func (i *Instance) AddEmplPshrToDB(empl *domain.Employee) (string, error) {
+func (i *PostgreInstance) AddEmplPshrToDB(empl *domain.Employee) (string, error) {
 	const emplPshr_insert_query = "INSERT INTO pshr_list (employee_guid, pshr_guid, pshr_id, pshr_descr) VALUES ($1, $2, $3, $4);"
 
 	commandTag, err := i.Db.Exec(context.Background(), emplPshr_insert_query,
@@ -965,7 +966,7 @@ func (i *Instance) AddEmplPshrToDB(empl *domain.Employee) (string, error) {
 	return commandTag.String(), nil
 }
 
-func (i *Instance) UpdateEmplPshrToDB(empl *domain.Employee) (string, error) {
+func (i *PostgreInstance) UpdateEmplPshrToDB(empl *domain.Employee) (string, error) {
 	const emplPshr_update_query = "UPDATE pshr_list set pshr_guid=$1, pshr_id=$2, pshr_descr=$3 where employee_guid=$4;"
 
 	commandTag, err := i.Db.Exec(context.Background(), emplPshr_update_query,
@@ -980,7 +981,7 @@ func (i *Instance) UpdateEmplPshrToDB(empl *domain.Employee) (string, error) {
 	return commandTag.String(), nil
 }
 
-func (i *Instance) DeleteEmplPshrFromDB(oldPshrGUID string) (string, error) {
+func (i *PostgreInstance) DeleteEmplPshrFromDB(oldPshrGUID string) (string, error) {
 	const emplPos_delete_query = "DELETE FROM pshr_list where pshr_guid=$1;"
 
 	commandTag, err := i.Db.Exec(context.Background(), emplPos_delete_query, oldPshrGUID)
@@ -995,7 +996,7 @@ func (i *Instance) DeleteEmplPshrFromDB(oldPshrGUID string) (string, error) {
 // Подразделения
 
 // Получим подразделение по GUID
-func (i *Instance) SelectDepByGUID(DepGUID string) (*domain.Departament, error) {
+func (i *PostgreInstance) SelectDepByGUID(DepGUID string) (*domain.Departament, error) {
 	dep, err := selectDepartamentByGUID(i.Db, DepGUID)
 	if err != nil {
 		return new(domain.Departament), err
@@ -1070,7 +1071,7 @@ func getDepParentGUIDByParentIdZUP(insDB *pgxpool.Pool, parentIdZUP string) (str
 	return parentDepGUID, nil // видимо, просто нет записи о родителе
 }
 
-func (i *Instance) AddDepartament(dep *domain.Departament) (string, error) {
+func (i *PostgreInstance) AddDepartament(dep *domain.Departament) (string, error) {
 	var curDepParentGUID string
 	if strings.TrimSpace(dep.DepartamentParentGUID) == "" {
 		curDepParentGUID, _ = getDepParentGUIDByParentIdZUP(i.Db, dep.DepartamentParentIdZUP) // получим guid родителя, если он есть
@@ -1094,7 +1095,7 @@ func (i *Instance) AddDepartament(dep *domain.Departament) (string, error) {
 	return commandTag.String(), nil
 }
 
-func (i *Instance) UpdateDepartament(dep *domain.Departament) (string, error) {
+func (i *PostgreInstance) UpdateDepartament(dep *domain.Departament) (string, error) {
 	curDepParentGUID, _ := getDepParentGUIDByParentIdZUP(i.Db, dep.DepartamentParentIdZUP) // получим guid родителя, если он есть
 
 	commandTag, err := i.Db.Exec(context.Background(),
@@ -1114,7 +1115,7 @@ func (i *Instance) UpdateDepartament(dep *domain.Departament) (string, error) {
 }
 
 // вернём все подразделения (и активные, и расформированные):
-func (i *Instance) GetAllDepartaments() ([]domain.Departament, error) {
+func (i *PostgreInstance) GetAllDepartaments() ([]domain.Departament, error) {
 
 	const departaments_query = "select departament_guid, zup_id, departament_descr, zup_parent_id, zup_not_used_from, departament_parent_guid from departaments;"
 
@@ -1147,7 +1148,7 @@ func (i *Instance) GetAllDepartaments() ([]domain.Departament, error) {
 }
 
 // вернём только все актуальные подразделения (не расформированные):
-func (i *Instance) GetActualDepartaments() ([]domain.Departament, error) {
+func (i *PostgreInstance) GetActualDepartaments() ([]domain.Departament, error) {
 
 	const departaments_query = "select departament_guid, zup_id, departament_descr, zup_parent_id, zup_not_used_from, departament_parent_guid " +
 		" from departaments where zup_parent_id <> '000999999' and zup_not_used_from = '0001-01-01';"
@@ -1181,7 +1182,7 @@ func (i *Instance) GetActualDepartaments() ([]domain.Departament, error) {
 }
 
 // вернём все актуальные подразделения по родителю:
-func (i *Instance) GetActualDepartamentsByParentIdZUP(parentIdZUP string) ([]domain.Departament, error) {
+func (i *PostgreInstance) GetActualDepartamentsByParentIdZUP(parentIdZUP string) ([]domain.Departament, error) {
 
 	const departaments_query = "select departament_guid, zup_id, departament_descr, zup_parent_id, zup_not_used_from, departament_parent_guid " +
 		" from departaments where zup_parent_id <> '000999999' and zup_not_used_from = '0001-01-01' and zup_parent_id=$1;"
@@ -1218,7 +1219,7 @@ func (i *Instance) GetActualDepartamentsByParentIdZUP(parentIdZUP string) ([]dom
 // Обмены
 //------------------------------------------------------
 // Регистрация к обмену
-func (i *Instance) AddToExchange(exch *domain.ExchangeStruct) (string, error) {
+func (i *PostgreInstance) AddToExchange(exch *domain.ExchangeStruct) (string, error) {
 	const emplPos_insert_query = "INSERT INTO exchanges (base_id, r_id, rowdata, date_init) VALUES ($1, $2, $3, $4);"
 
 	commandTag, err := i.Db.Exec(context.Background(), emplPos_insert_query,
@@ -1235,7 +1236,7 @@ func (i *Instance) AddToExchange(exch *domain.ExchangeStruct) (string, error) {
 
 // Получим данные user-ов (физ. лиц) к обмену , у которых resp_status не равен 200(ok)
 // метод основан на том, что в поле exch.rowdata не произвольные данные, а user_guid
-func (i *Instance) GetAllUsersToExchange(reasonID int) ([]string, *map[int]domain.Exchange1СErrorsStruct, error) { // []domain.User
+func (i *PostgreInstance) GetAllUsersToExchange(reasonID int) ([]string, *map[int]domain.Exchange1СErrorsStruct, error) { // []domain.User
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
 	defer cancel()
@@ -1275,7 +1276,7 @@ func (i *Instance) GetAllUsersToExchange(reasonID int) ([]string, *map[int]domai
 
 //------------------------------------------------------
 // апдейтим записи по одной - цикл в вызывающей функции, т.к. у них может быть разное значение "attempt_count"
-func (ins *Instance) SetExchangeStatus(ex_id int, attempt_count int, errorStr string) error {
+func (ins *PostgreInstance) SetExchangeStatus(ex_id int, attempt_count int, errorStr string) error {
 	// пробуем 10 раз, если нет, то будем писать в redis и потом пробовать еще
 	const update_query = "update exchanges set attempt_count=$1, last_attempt_date=$2, resp_status=$3 where ex_id=$4;"
 
@@ -1296,7 +1297,7 @@ func (ins *Instance) SetExchangeStatus(ex_id int, attempt_count int, errorStr st
 
 // common notifications
 // получить список email-ов user-ов по типу рассылки
-func (ins *Instance) GetUserEmailsByNotificationsTypes(notitype int) ([]string, error) {
+func (ins *PostgreInstance) GetUserEmailsByNotificationsTypes(notitype int) ([]string, error) {
 	const bd_usrs_query_debug_all = "select usr.email " +
 		" 							 from users_for_notifications un " +
 		" 								left join users usr on un.user_guid=usr.user_guid " +
@@ -1324,7 +1325,7 @@ func (ins *Instance) GetUserEmailsByNotificationsTypes(notitype int) ([]string, 
 
 //------------------------------------------------------
 // вернуть всех именинников, ДР которых приходится на конкретную дату DEBUG !!!!!!!!!!!!!!!!!!!!!!!!!
-func (ins *Instance) GetBdOwnersOneDayDebug(dateTempl string) (map[string][]domain.User, error) { //([]domain.User, error) {
+func (ins *PostgreInstance) GetBdOwnersOneDayDebug(dateTempl string) (map[string][]domain.User, error) { //([]domain.User, error) {
 
 	const bd_usrs_query_debug_all = "select user_name, user_birthday from users " +
 		"								where cast(user_birthday as text) like $1;"
@@ -1362,7 +1363,7 @@ func (ins *Instance) GetBdOwnersOneDayDebug(dateTempl string) (map[string][]doma
 }
 
 // вернуть всех именинников, ДР которых приходится на конкретную дату, а также их наблюдателей
-func (ins *Instance) GetBdObserversOwnersByTempl(dateTempl string) (map[string][]domain.User, error) {
+func (ins *PostgreInstance) GetBdObserversOwnersByTempl(dateTempl string) (map[string][]domain.User, error) {
 
 	const bd_usrs_query = "select " +
 		" 						usr.user_name, " +
@@ -1409,7 +1410,7 @@ func (ins *Instance) GetBdObserversOwnersByTempl(dateTempl string) (map[string][
 }
 
 // вернуть всех именинников, ДР которых приходится на nextWeek, а также их наблюдателей
-func (ins *Instance) GetBdObserversOwnersnextWeek(nextWeek domain.NextWeekStruct) (map[string][]domain.User, error) {
+func (ins *PostgreInstance) GetBdObserversOwnersnextWeek(nextWeek domain.NextWeekStruct) (map[string][]domain.User, error) {
 
 	const bd_usrs_query = "select " +
 		" 						usr.user_name, " +
@@ -1471,7 +1472,7 @@ func (ins *Instance) GetBdObserversOwnersnextWeek(nextWeek domain.NextWeekStruct
 
 //------------------------------------------------------
 // сделать запись в таблицу "напомнить кому" - "напомнить о ком"
-func (ins *Instance) InsertBdObsOwners(bdObserverId, bdOwnerId string) error {
+func (ins *PostgreInstance) InsertBdObsOwners(bdObserverId, bdOwnerId string) error {
 	const bd_usrs_query = "insert into bd_notifications " +
 		" 				       (bd_observer_guid, bd_owner_guid) " +
 		" 				   values( " +

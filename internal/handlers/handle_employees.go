@@ -12,7 +12,7 @@ import (
 //------------------------------------------------------------
 // все аттрибуты
 // Отдаем данные всех работающих (актуальных) сотрудников, у которых есть email-ы (все аттрибуты)
-func GetAllEmailEmployeesAllAttributes(ins *repository.Instance) ([]byte, error) {
+func GetAllEmailEmployeesAllAttributes(ins *repository.PostgreInstance) ([]byte, error) {
 	// пока ВСЕ (не один) из базы:
 	allEmployeesData, err := ins.GetAllActualEmailUsersAllAttributes()
 	if err != nil {
@@ -33,7 +33,7 @@ func GetAllEmailEmployeesAllAttributes(ins *repository.Instance) ([]byte, error)
 //------------------------------------------------------------
 // облегчённые аттрибуты
 // Отдаем данные всех работающих (актуальных) сотрудников (облегчённые аттрибуты)
-func GetAllEmployeesLightVersionAttributes(ins *repository.Instance) ([]byte, error) {
+func GetAllEmployeesLightVersionAttributes(ins *repository.PostgreInstance) ([]byte, error) {
 	// пока ВСЕ (не один) из базы:
 	allEmployeesData, err := ins.GetAllActualUsersLightVersionAttributes()
 	if err != nil {
@@ -52,7 +52,7 @@ func GetAllEmployeesLightVersionAttributes(ins *repository.Instance) ([]byte, er
 }
 
 // Отдаем данные всех работающих (актуальных) сотрудников, у которых есть email-ы (все аттрибуты)
-func GetAllEmailEmployeesLightVersionAttributes(ins *repository.Instance) ([]byte, error) {
+func GetAllEmailEmployeesLightVersionAttributes(ins *repository.PostgreInstance) ([]byte, error) {
 	// пока ВСЕ (не один) из базы:
 	allEmployeesData, err := ins.GetAllActualEmailUsersLightVersionAttributes()
 	if err != nil {
@@ -72,7 +72,7 @@ func GetAllEmailEmployeesLightVersionAttributes(ins *repository.Instance) ([]byt
 
 //------------------------------------------------------------
 // переберем всех сотрудников пользователя проверим каждого на предмет: нужно ли его обновить (или может, добавить...) и произведем нужное действие:
-func handleAllUserEmployeesForCRUD(ins *repository.Instance, usr *dom.User) error {
+func handleAllUserEmployeesForCRUD(ins *repository.PostgreInstance, usr *dom.User) error {
 	for _, emp := range usr.Employees {
 		err := handleSingleEmployeeForCRUD(ins, usr, &emp)
 		if err != nil {
@@ -83,7 +83,7 @@ func handleAllUserEmployeesForCRUD(ins *repository.Instance, usr *dom.User) erro
 	return nil
 }
 
-func handleSingleEmployeeForCRUD(ins *repository.Instance, usr *dom.User, empl *dom.Employee) error {
+func handleSingleEmployeeForCRUD(ins *repository.PostgreInstance, usr *dom.User, empl *dom.Employee) error {
 	var err error
 
 	selectedEmployeeCRUDStatus, err := checkSingleEmployeeForCRUD(ins, usr.UserGUID, empl)
@@ -129,7 +129,7 @@ func handleSingleEmployeeForCRUD(ins *repository.Instance, usr *dom.User, empl *
 
 // TODO
 // проверим нужно ли обновить данные одного конкретного сотрудника:
-func checkSingleEmployeeForCRUD(ins *repository.Instance, userGuid string, emp *dom.Employee) (int, error) {
+func checkSingleEmployeeForCRUD(ins *repository.PostgreInstance, userGuid string, emp *dom.Employee) (int, error) {
 	oldEmployee, err := ins.SelectSingleEmployeeWithAttribsByGUID(emp.EmployeeGUID)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
@@ -167,7 +167,7 @@ func checkSingleEmployeeForCRUD(ins *repository.Instance, userGuid string, emp *
 }
 
 // добавим одного сотрудника пользователя с подразделением, долж. и т.д.:
-func addEmployee(ins *repository.Instance, u *dom.User, empl *dom.Employee) error {
+func addEmployee(ins *repository.PostgreInstance, u *dom.User, empl *dom.Employee) error {
 	// сам сотрудник
 	str, err := ins.AddEmployeeToDB(u.UserGUID, empl)
 	if err != nil {
@@ -180,7 +180,7 @@ func addEmployee(ins *repository.Instance, u *dom.User, empl *dom.Employee) erro
 }
 
 // обновим одного сотрудника пользователя; только его - без подразделения, долж. и т.д.:
-func updateEmployee(ins *repository.Instance, usr *dom.User, empl *dom.Employee) error {
+func updateEmployee(ins *repository.PostgreInstance, usr *dom.User, empl *dom.Employee) error {
 	// сам сотрудник
 	str, err := ins.UpdateEmployeeInDB(usr.UserGUID, empl)
 	if err != nil {

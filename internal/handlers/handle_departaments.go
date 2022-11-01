@@ -21,7 +21,7 @@ func HandleZupPingAllDepartaments(w http.ResponseWriter, body []byte) {
 }
 
 // Функция для записи подразделений в базу из 1С:ЗУП
-func handleAllDepartamentForCRUD(ins *repository.Instance, data []byte) (string, error) {
+func handleAllDepartamentForCRUD(ins *repository.PostgreInstance, data []byte) (string, error) {
 	var gettingDeps dom.Departaments
 	var strAnswer string
 
@@ -48,7 +48,7 @@ func handleAllDepartamentForCRUD(ins *repository.Instance, data []byte) (string,
 }
 
 // Функция для записи подразделения в базу, если не нашли такого по GUID, либо обновления, если нашли
-func handleSingleDepartamentForCRUD(ins *repository.Instance, dep dom.Departament) (string, error) {
+func handleSingleDepartamentForCRUD(ins *repository.PostgreInstance, dep dom.Departament) (string, error) {
 	var str string
 	var err error
 
@@ -82,7 +82,7 @@ func handleSingleDepartamentForCRUD(ins *repository.Instance, dep dom.Departamen
 	return str, nil
 }
 
-func checkSingleDepartamentForCRUD(ins *repository.Instance, dep *dom.Departament) (int, error) {
+func checkSingleDepartamentForCRUD(ins *repository.PostgreInstance, dep *dom.Departament) (int, error) {
 	gottenDep, err := ins.SelectDepByGUID(dep.DepartamentGUID)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {

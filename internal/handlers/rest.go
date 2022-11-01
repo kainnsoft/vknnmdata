@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	config "mdata/configs"
 	dom "mdata/internal/domain"
 	"mdata/internal/repository"
 	"mdata/internal/utils"
@@ -39,7 +40,7 @@ func PingZup(w http.ResponseWriter, r *http.Request) {
 	// ctx, cancel := context.WithTimeout(r.Context(), 10*time.Millisecond)
 	// defer cancel()
 	// req, err := http.NewRequestWithContext(ctx, http.MethodGet, api1CZupPing, nil)
-	req, err := http.NewRequest(http.MethodGet, repository.GetApi1CZupPing(), nil)
+	req, err := http.NewRequest(http.MethodGet, config.GetApi1CZupPing(), nil)
 	if err != nil {
 		log.Error("rest: handlers.PingZup: no request: %v", err)
 	}
@@ -70,7 +71,7 @@ func PingZup(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("handlers.PingZup: I'v got strZupPing:\n %v", strZupPing)))
 }
 
-func PingDB(ins *repository.Instance) http.HandlerFunc {
+func PingDB(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		response, err := repository.DBPing(ins)
 		if err != nil {
@@ -87,7 +88,7 @@ func PingDB(ins *repository.Instance) http.HandlerFunc {
 // ping - метод. Получим всех пользователей 1С:ЗУП
 func PingFromZmupAllUsers(w http.ResponseWriter, r *http.Request) {
 	// create request
-	req, err := http.NewRequest(http.MethodGet, repository.GetApi1CZupAllEmployees(), nil)
+	req, err := http.NewRequest(http.MethodGet, config.GetApi1CZupAllEmployees(), nil)
 	if err != nil {
 		log.Error("rest: handlers.PingEromZupAllEmployees: no request: ", err)
 	}
@@ -111,9 +112,9 @@ func PingFromZmupAllUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// have got body of response
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Error("rest: handlers.PingEromZupAllEmployees: ioutil.ReadAll(Body)", err)
+		log.Error("rest: handlers.PingEromZupAllEmployees: io.ReadAll(Body)", err)
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -122,10 +123,10 @@ func PingFromZmupAllUsers(w http.ResponseWriter, r *http.Request) {
 
 //*******************************************
 // Запишем в БД всех user-ов из ЗУП-а, по пути получив их email из AD
-func RestHandleZupWriteAllUsers(ins *repository.Instance) http.HandlerFunc {
+func RestHandleZupWriteAllUsers(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// request to get user data from 1C:ZUP
-		req, err := http.NewRequest(http.MethodGet, repository.GetApi1CZupAllEmployees(), nil)
+		req, err := http.NewRequest(http.MethodGet, config.GetApi1CZupAllEmployees(), nil)
 		if err != nil {
 			log.Error("handlers.RestHandleZupWriteAllUsers: no request: %v", err)
 		}
@@ -142,9 +143,9 @@ func RestHandleZupWriteAllUsers(ins *repository.Instance) http.HandlerFunc {
 		defer resp.Body.Close()
 
 		// have got body of response
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			log.Error("handlers.RestHandleZupWriteAllUsers: ioutil.ReadAll(Body) %v", err)
+			log.Error("handlers.RestHandleZupWriteAllUsers: io.ReadAll(Body) %v", err)
 		}
 
 		// handling user data and write to db
@@ -158,13 +159,11 @@ func RestHandleZupWriteAllUsers(ins *repository.Instance) http.HandlerFunc {
 }
 
 // Testing-Debug. Запишем в БД одного user-а из запроса (из Postman-а), по пути получив его email из AD
-func RestHandleDebugWriteOneUser(ins *repository.Instance) http.HandlerFunc {
+func RestHandleDebugWriteOneUser(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Error("handlers.RestHandleDebugWriteOneUser: ioutil.ReadAll(Body)", err)
-			//w.WriteHeader(http.StatusInternalServerError)
-			//w.Write([]byte("500 - Something bad happened!"))
+			log.Error("handlers.RestHandleDebugWriteOneUser: io.ReadAll(Body)", err)
 			http.Error(w, "500 - Something bad happened!", 500)
 			return
 		}
@@ -212,7 +211,7 @@ func RestPutOneUserEmailToZup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// set the HTTP method, url, and request body
-	req, err := http.NewRequest(http.MethodPut, repository.GetPutTo1CZupEmailAdress(), bytes.NewBuffer(json))
+	req, err := http.NewRequest(http.MethodPut, config.GetPutTo1CZupEmailAdress(), bytes.NewBuffer(json))
 	if err != nil {
 		log.Error("handlers.PutOneUserEmailToZup handl http.NewRequest error:", err)
 	}
@@ -229,9 +228,9 @@ func RestPutOneUserEmailToZup(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Error("handlers.PutOneUserEmailToZup handl ioutil.ReadAll(resp.Body) error:", err)
+		log.Error("handlers.PutOneUserEmailToZup handl io.ReadAll(resp.Body) error:", err)
 	}
 
 	if resp.StatusCode != 200 {
@@ -246,7 +245,7 @@ func RestPutOneUserEmailToZup(w http.ResponseWriter, r *http.Request) {
 
 //*******************************************
 // Отправляем в 1С:ЗУП email всех пользователей для обновления email
-func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
+func RestPutAllUsersWithEmailToZup(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body := make([]byte, 0)
 		// (после успешной - ??? загрузки в 1С:ЗУП), отправим log-файл в бухгалтерию:
@@ -270,7 +269,7 @@ func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 		}
 
 		// готовим запрос в 1С:ЗУП
-		req, err := http.NewRequest("PUT", repository.GetPutTo1CZupEmailAdress(), bytes.NewBuffer(jsonSliceOfByte))
+		req, err := http.NewRequest("PUT", config.GetPutTo1CZupEmailAdress(), bytes.NewBuffer(jsonSliceOfByte))
 		if err != nil {
 			errorString := "rest handlers.RestPutAllUsersWithEmailToZup: http.NewRequest error: " + err.Error()
 			log.Error(errorString)
@@ -294,9 +293,9 @@ func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 		defer resp.Body.Close()
 
 		// читаем ответ
-		body, err = ioutil.ReadAll(resp.Body)
+		body, err = io.ReadAll(resp.Body)
 		if err != nil {
-			errorString := "handlers.PutOneUserEmailToZup handl ioutil.ReadAll(resp.Body) error: " + err.Error()
+			errorString := "handlers.PutOneUserEmailToZup handl io.ReadAll(resp.Body) error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, http.StatusForbidden) // 403
 			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 403")
@@ -330,13 +329,13 @@ func RestPutAllUsersWithEmailToZup(ins *repository.Instance) http.HandlerFunc {
 
 		log.Info("rest: handlers.RestPutAllUsersWithEmailToZup: %d users and their emails have sent to 1C:ZUP; resp.StatusCode: %d", len(jsonSliceOfByte), resp.StatusCode)
 		// если до сюда дошли, то обмен состоялся. Запишем это в табл. "exchanges"
-		go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, repository.Response200ok)
+		go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, config.Response200ok)
 	}
 }
 
 //------------------------------------------------------------
 // Отправляем в 1С:CreateUser даные новых сотрудников (users) для создания для них пользователей в 1С
-func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.HandlerFunc {
+func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var errorString string
 		var usersToExchangeSlice []dom.User // для формирования письма
@@ -373,7 +372,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 		}
 
 		// готовим запрос в 1С:CreateUser
-		reqAdress := repository.GetPutTo1CCreateUserAdress()
+		reqAdress := config.GetPutTo1CCreateUserAdress()
 		req, err := http.NewRequest("PUT", reqAdress, bytes.NewBuffer(jsonSliceOfByte))
 		if err != nil {
 			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts: http.NewRequest error: " + err.Error()
@@ -383,7 +382,7 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 			errorCode = 400
 			return
 		}
-		req.SetBasicAuth(repository.GetPutTo1CCreateUserLogin(), repository.GetPutTo1CCreateUserPass()) // TODO перенести в config
+		req.SetBasicAuth(config.GetPutTo1CCreateUserLogin(), config.GetPutTo1CCreateUserPass()) // TODO перенести в config
 		req.Header.Set("X-Custom-Header", "mdrequest")
 		req.Header.Set("Content-Type", "application/json")
 
@@ -401,9 +400,9 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 		defer resp.Body.Close()
 
 		// читаем ответ
-		body, err = ioutil.ReadAll(resp.Body)
+		body, err = io.ReadAll(resp.Body)
 		if err != nil {
-			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts handle ioutil.ReadAll(resp.Body) error: " + err.Error()
+			errorString = "rest handlers.RestPutNewUsersWithEmailToCreate1CAccounts handle io.ReadAll(resp.Body) error: " + err.Error()
 			log.Error(errorString)
 			http.Error(w, errorString, http.StatusForbidden) // 403
 			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString+" 403")
@@ -424,8 +423,6 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 		} else if resp.StatusCode == 500 {
 			errorString = "rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: 500 Internal server error"
 			log.Error(errorString)
-			//w.WriteHeader(http.StatusInternalServerError)
-			//w.Write([]byte("500 Internal server error"))
 			http.Error(w, "500 Internal server error", 500)
 			go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, errorString)
 			errorCode = 500
@@ -443,14 +440,14 @@ func RestPutNewUsersWithEmailToCreate1CAccounts(ins *repository.Instance) http.H
 		log.Info("rest: handlers.RestPutNewUsersWithEmailToCreate1CAccounts: %d users have sent to 1C:CreateUser for accountings; resp.StatusCode: %d", len(jsonSliceOfByte), resp.StatusCode)
 		// если до сюда дошли, то обмен состоялся. Запишем это в табл. "exchanges"
 		errorCode = 200
-		go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, repository.Response200ok) //// TODO вернуть go !!!!!!!!!!!!!!!!!
+		go putRequestFrom1CLoadingPrepare(ins, body, ptrExchMap, config.Response200ok) //// TODO вернуть go !!!!!!!!!!!!!!!!!
 	}
 }
 
 //------------------------------------------------------------
 // все аттрибуты
 // Отдаем данные всех работающих (актуальных) сотрудников (все аттрибуты)
-func RestSendActEmployeesAllAttributes(ins *repository.Instance) http.HandlerFunc {
+func RestSendActEmployeesAllAttributes(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// получаем весь массив сотрудников, который будем возвращать
 		jsonSliceOfEmployees, err := GetActEmployeesAllAttributes(ins)
@@ -459,13 +456,14 @@ func RestSendActEmployeesAllAttributes(ins *repository.Instance) http.HandlerFun
 			w.Write([]byte(err.Error()))
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(jsonSliceOfEmployees)
 	}
 }
 
 // Отдаем данные всех уволенных сотрудников (все аттрибуты)
-func RestSendUsersFiredFromAllAttributes(ins *repository.Instance) http.HandlerFunc {
+func RestSendUsersFiredFromAllAttributes(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var dateFrom time.Time = time.Now()
 
@@ -516,13 +514,14 @@ func RestSendUsersFiredFromAllAttributes(ins *repository.Instance) http.HandlerF
 			w.Write([]byte(err.Error()))
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(jsonSliceOfEmployees)
 	}
 }
 
 // Отдаем данные всех работающих (актуальных) сотрудников, у которых есть email-ы (все аттрибуты)
-func RestSendAllEmailEmployeesAllAttributes(ins *repository.Instance) http.HandlerFunc {
+func RestSendAllEmailEmployeesAllAttributes(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// получаем весь массив сотрудников, который будем возвращать
 		jsonSliceOfEmployees, err := GetAllEmailEmployeesAllAttributes(ins)
@@ -531,13 +530,14 @@ func RestSendAllEmailEmployeesAllAttributes(ins *repository.Instance) http.Handl
 			w.Write([]byte(err.Error()))
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(jsonSliceOfEmployees)
 	}
 }
 
 // Отдаем данные одного/группы работающих (актуальных) пользователя(-лей) по одному параметру (обрабатывается как like) (все аттрибуты)
-func RestSendEmployeeAllAttributes(ins *repository.Instance) http.HandlerFunc {
+func RestSendEmployeeAllAttributes(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// либо по табельному номеру, либо по ФИО:
 		t := r.URL.Query()
@@ -557,12 +557,14 @@ func RestSendEmployeeAllAttributes(ins *repository.Instance) http.HandlerFunc {
 		if tabno != "" {
 			// получаем весь массив сотрудников, который будем возвращать, т.к. параметр обрабатывается как like
 			jsonSliceOfUsersByTabNo := GetUsersByTabNoAllAttributes(ins, tabno) /////-----------------------------
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonSliceOfUsersByTabNo)
 			return
 		} else if userName != "" {
 			// получаем весь массив сотрудников, который будем возвращать, т.к. параметр обрабатывается как like
 			jsonSliceOfUsersByName := GetUsersByNameAllAttributes(ins, userName)
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonSliceOfUsersByName)
 			return
@@ -576,7 +578,7 @@ func RestSendEmployeeAllAttributes(ins *repository.Instance) http.HandlerFunc {
 //------------------------------------------------------------
 // облегчённые аттрибуты
 // Отдаем данные всех работающих (актуальных) сотрудников (облегчённые аттрибуты)
-func RestSendAllEmployeesLightVersionAttributes(ins *repository.Instance) http.HandlerFunc {
+func RestSendAllEmployeesLightVersionAttributes(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// получаем весь массив сотрудников, который будем возвращать
 		jsonSliceOfEmployees, err := GetAllEmployeesLightVersionAttributes(ins)
@@ -585,13 +587,14 @@ func RestSendAllEmployeesLightVersionAttributes(ins *repository.Instance) http.H
 			w.Write([]byte(err.Error()))
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(jsonSliceOfEmployees)
 	}
 }
 
 // Отдаем данные всех работающих (актуальных) сотрудников, у которых есть email-ы (облегчённые аттрибуты)
-func RestSendAllEmailEmployeesLightVersionAttributes(ins *repository.Instance) http.HandlerFunc {
+func RestSendAllEmailEmployeesLightVersionAttributes(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// получаем весь массив сотрудников, который будем возвращать
 		jsonSliceOfEmployees, err := GetAllEmailEmployeesLightVersionAttributes(ins)
@@ -600,6 +603,7 @@ func RestSendAllEmailEmployeesLightVersionAttributes(ins *repository.Instance) h
 			w.Write([]byte(err.Error()))
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(jsonSliceOfEmployees)
 	}
@@ -641,7 +645,7 @@ func (ds *delayStruct) delRecord(comp string) {
 var globalDelayMap = delayStructInit()
 
 // Отдаем данные одного/группы работающих (актуальных) пользователя(-лей) по одному параметру (обрабатывается как like) (облегчённые аттрибуты)
-func RestSendEmployeeLightVersionAttributes(ins *repository.Instance) http.HandlerFunc {
+func RestSendEmployeeLightVersionAttributes(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// либо по табельному номеру, либо по ФИО:
 		t := r.URL.Query()
@@ -661,6 +665,7 @@ func RestSendEmployeeLightVersionAttributes(ins *repository.Instance) http.Handl
 		if tabno != "" {
 			// получаем весь массив сотрудников, который будем возвращать, т.к. параметр обрабатывается как like
 			jsonSliceOfUsersByTabNo := GetUsersByTabNoLightVersionAttributes(ins, tabno) /////-----------------------------
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonSliceOfUsersByTabNo)
 			return
@@ -686,6 +691,7 @@ func RestSendEmployeeLightVersionAttributes(ins *repository.Instance) http.Handl
 
 			// получаем весь массив сотрудников, который будем возвращать, т.к. параметр обрабатывается как like
 			jsonSliceOfUsersByName := GetUsersByNameLightVersionAttributes(ins, userName)
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonSliceOfUsersByName)
 			return
@@ -702,7 +708,7 @@ func RestSendEmployeeLightVersionAttributes(ins *repository.Instance) http.Handl
 func RestGetFromZupPingAllDepartaments() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// create request
-		req, err := http.NewRequest(http.MethodGet, repository.GetApi1CZupAllDepartaments(), nil)
+		req, err := http.NewRequest(http.MethodGet, config.GetApi1CZupAllDepartaments(), nil)
 		if err != nil {
 			log.Error("rest handlers.RestGetFromZupPingAllDepartaments http.NewRequest error: ", err)
 		}
@@ -719,9 +725,9 @@ func RestGetFromZupPingAllDepartaments() http.HandlerFunc {
 		defer resp.Body.Close()
 
 		// have got body of response
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			log.Error("rest handlers.RestGetFromZupPingAllDepartaments ioutil.ReadAll(resp.Body) error: %v", err)
+			log.Error("rest handlers.RestGetFromZupPingAllDepartaments io.ReadAll(resp.Body) error: %v", err)
 		}
 
 		HandleZupPingAllDepartaments(w, body)
@@ -729,11 +735,11 @@ func RestGetFromZupPingAllDepartaments() http.HandlerFunc {
 }
 
 // Testing-Debug. Запишем в БД одно подразделение из запроса (из Postman-а)
-func RestHandleDebugWriteSingleDepartament(ins *repository.Instance) http.HandlerFunc {
+func RestHandleDebugWriteSingleDepartament(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Error("handlers.RestHandleDebugWriteSingleDepartament: ioutil.ReadAll(Body): %v", err)
+			log.Error("handlers.RestHandleDebugWriteSingleDepartament: io.ReadAll(Body): %v", err)
 			http.Error(w, "500 - Something bad happened!", 500)
 			return
 		}
@@ -754,10 +760,10 @@ func RestHandleDebugWriteSingleDepartament(ins *repository.Instance) http.Handle
 }
 
 // получить все подразделения из 1С:ЗУП и записать их в базу MD
-func RestHandleFromZupAllDepartament(ins *repository.Instance) http.HandlerFunc {
+func RestHandleFromZupAllDepartament(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		// create request
-		req, err := http.NewRequest(http.MethodGet, repository.GetApi1CZupAllDepartaments(), nil)
+		req, err := http.NewRequest(http.MethodGet, config.GetApi1CZupAllDepartaments(), nil)
 		if err != nil {
 			log.Error("rest handlers.RestHandleFromZupAllDepartament http.NewRequest error: %v", err)
 		}
@@ -775,9 +781,9 @@ func RestHandleFromZupAllDepartament(ins *repository.Instance) http.HandlerFunc 
 		defer resp.Body.Close()
 
 		// have got body of response
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			log.Error("rest handlers.RestHandleFromZupAllDepartament ioutil.ReadAll(resp.Body) error: %v", err)
+			log.Error("rest handlers.RestHandleFromZupAllDepartament io.ReadAll(resp.Body) error: %v", err)
 		}
 
 		// собственно обработчик:
@@ -794,7 +800,7 @@ func RestHandleFromZupAllDepartament(ins *repository.Instance) http.HandlerFunc 
 
 //------------------------------------------------------------
 // установить пары observer - bd_owner
-func RestSetOOCoupleForBdNotifications(ins *repository.Instance) http.HandlerFunc {
+func RestSetOOCoupleForBdNotifications(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			rw.WriteHeader(http.StatusMethodNotAllowed)
@@ -802,9 +808,9 @@ func RestSetOOCoupleForBdNotifications(ins *repository.Instance) http.HandlerFun
 			return
 		}
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Error("handlers.RestSetOOCoupleForBdNotifications: ioutil.ReadAll(Body) %v", err)
+			log.Error("handlers.RestSetOOCoupleForBdNotifications: io.ReadAll(Body) %v", err)
 			http.Error(rw, "500 - Something bad happened!", 500)
 			return
 		}
@@ -825,7 +831,7 @@ func RestSetOOCoupleForBdNotifications(ins *repository.Instance) http.HandlerFun
 
 //------------------------------------------------------------
 // запустить поиск и рассылку
-func RestSendBdNotifications(ins *repository.Instance) http.HandlerFunc {
+func RestSendBdNotifications(ins *repository.PostgreInstance) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		// собственно обработчик:
 		sendBdNotifications(ins)

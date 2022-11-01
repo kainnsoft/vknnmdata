@@ -9,97 +9,158 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var (
-	log, logBuch, logBuchFull *logrus.Logger
-	FBuchName                 string
-)
+// ****************************************************************************
+// логгер для вывода логов в файл логов (или в stdOut)
+type infoLog struct {
+	out *logrus.Logger
+	mx  *sync.Mutex
+}
 
-var lock = sync.Mutex{}
-
-func init() {
-	mainLogFile, err := os.OpenFile("logs/md-info.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0664)
+func newInfoLog(outPath string, mtx *sync.Mutex) *infoLog {
+	infoLogFile, err := os.OpenFile(outPath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0664)
 	if err != nil {
-		logging.Fatalf("error opening file: %v", err)
+		logging.Fatalf("error opening infoLogFile: %v", err)
 	}
 
-	log = logrus.New()
-	//log.Formatter = &logrus.JSONFormatter{}
+	inflog := logrus.New()
+	inflog.SetFormatter(&logrus.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
+	})
 
-	log.SetReportCaller(false)
+	inflog.SetReportCaller(false) // func name
 
-	mw := io.MultiWriter(os.Stdout, mainLogFile)
-	log.SetOutput(mw)
+	mw := io.MultiWriter(os.Stdout, infoLogFile)
+	inflog.SetOutput(mw)
 
-	{
-		//*************************************************************************************
-		// for Gruschenko еженедельный. Каждую пятницу отправляется и очищается.
-		fBuch, err := os.OpenFile("logs/Электронные почты сотрудников.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0664)
-		FBuchName = fBuch.Name()
-		if err != nil {
-			logging.Fatalf("error opening file: %v", err)
-		}
-		logBuch = logrus.New()
-		logBuch.SetReportCaller(false)
-		mwBuch := io.MultiWriter(os.Stdout, fBuch)
-		logBuch.SetOutput(mwBuch)
+	infolog := infoLog{out: inflog, mx: mtx}
 
-		//*************************************************************************************
-		// for Gruschenko max итоговый за все перриоды (нреочищаемый)
-		fBuchFull, err := os.OpenFile("logs/mdBuch-info.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0664)
-		if err != nil {
-			logging.Fatalf("error opening file: %v", err)
-		}
-		logBuchFull = logrus.New()
-		logBuch.SetReportCaller(false)
-		mwBuchFull := io.MultiWriter(os.Stdout, fBuchFull)
-		logBuchFull.SetOutput(mwBuchFull)
+	return &infolog
+}
+
+func (l *infoLog) infof(format string, v ...interface{}) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+	l.out.Infof(format, v...)
+}
+
+// ----------------------
+// логгер для вывода логов ошибок в файл логов ошибок (или в stdErr)
+type errorLog struct {
+	out *logrus.Logger
+	mx  *sync.Mutex
+}
+
+func newErrorLog(outPath string, mtx *sync.Mutex) *errorLog {
+	errorLogFile, err := os.OpenFile(outPath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0664)
+	if err != nil {
+		logging.Fatalf("error opening errorLogFile: %v", err)
 	}
+
+	elog := logrus.New()
+	elog.SetFormatter(&logrus.TextFormatter{ // log.Formatter = &logrus.JSONFormatter{}
+		DisableColors: true,
+		FullTimestamp: true,
+	})
+
+	elog.SetReportCaller(true) // func name
+
+	mw := io.MultiWriter(os.Stdout, errorLogFile)
+	elog.SetOutput(mw)
+
+	errlog := errorLog{out: elog, mx: mtx}
+
+	return &errlog
 }
 
-// Info ...
-func Info(format string, v ...interface{}) {
-	lock.Lock()
-	log.Infof(format, v...)
-	lock.Unlock()
+func (l *errorLog) warnf(format string, v ...interface{}) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+	l.out.Warnf(format, v...)
 }
 
-// for Gruschenko
-func InfoBuch(format string, v ...interface{}) {
-	lock.Lock()
-	logBuch.Infof(format, v...)
-	lock.Unlock()
-}
-func InfoBuchFull(format string, v ...interface{}) {
-	lock.Lock()
-	logBuchFull.Infof(format, v...)
-	lock.Unlock()
+func (l *errorLog) errorf(format string, v ...interface{}) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+	l.out.Errorf(format, v...)
 }
 
-// Warn ...
-func Warn(format string, v ...interface{}) {
-	lock.Lock()
-	log.Warnf(format, v...)
-	lock.Unlock()
+func (l *errorLog) fatalf(format string, v ...interface{}) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+	l.out.Fatalf(format, v...)
 }
 
-// Error ...
-func Error(format string, v ...interface{}) {
-	lock.Lock()
-	log.Errorf(format, v...)
-	lock.Unlock()
+// ----------------------
+// логгер для вывода логов в спец файл для бухгалтерии
+type buhLog struct {
+	out *logrus.Logger
+	mx  *sync.Mutex
 }
 
-var (
+func newBuhLog(outPath string, mtx *sync.Mutex) *buhLog {
+	buhLogFile, err := os.OpenFile(outPath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0664)
+	if err != nil {
+		logging.Fatalf("error opening buhLogFile: %v", err)
+	}
 
-	// ConfigError ...
-	ConfigError = "%v type=config.error"
+	blog := logrus.New()
+	blog.SetFormatter(&logrus.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: false,
+	})
 
-	// HTTPError ...
-	HTTPError = "%v type=http.error"
+	blog.SetReportCaller(false) // func name
 
-	// HTTPWarn ...
-	HTTPWarn = "%v type=http.warn"
+	mw := io.MultiWriter(os.Stdout, buhLogFile)
+	blog.SetOutput(mw)
 
-	// HTTPInfo ...
-	HTTPInfo = "%v type=http.info"
-)
+	buhlog := buhLog{out: blog, mx: mtx}
+
+	return &buhlog
+}
+
+func (l *buhLog) infof(format string, v ...interface{}) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+	l.out.Infof(format, v...)
+}
+
+// ----------------------
+// главный логгер. Запускается при старте системы
+type MDLogger struct {
+	inflog *infoLog
+	errlog *errorLog
+	buhlog *buhLog
+}
+
+func NewMDLogger(infoPath, errPath, buhPath string) *MDLogger {
+	var mtx sync.Mutex
+	infolog := newInfoLog(infoPath, &mtx)
+	errlog := newErrorLog(errPath, &mtx)
+	buhlog := newBuhLog(buhPath, &mtx)
+
+	return &MDLogger{inflog: infolog,
+		errlog: errlog,
+		buhlog: buhlog}
+}
+
+func (mdl *MDLogger) Infof(format string, v ...interface{}) {
+	mdl.inflog.infof(format, v...)
+}
+
+func (mdl *MDLogger) Warnf(format string, v ...interface{}) {
+	mdl.errlog.warnf(format, v...)
+}
+
+func (mdl *MDLogger) Errorf(format string, v ...interface{}) {
+	mdl.errlog.errorf(format, v...)
+}
+
+func (mdl *MDLogger) Fatalf(format string, v ...interface{}) {
+	mdl.errlog.fatalf(format, v...)
+}
+
+func (mdl *MDLogger) BuhInfof(format string, v ...interface{}) {
+	mdl.buhlog.infof(format, v...)
+}

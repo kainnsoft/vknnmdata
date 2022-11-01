@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	config "mdata/configs"
 	dom "mdata/internal/domain"
 	"mdata/internal/repository"
 	log "mdata/pkg/logging"
@@ -17,7 +18,7 @@ import (
 var insLdapConn *repository.LdapConn
 
 func openLdapConn() error {
-	cfg := repository.GetCfg()
+	cfg := config.GetCfg()
 	// cfg := &dom.Config{}
 	// cfg.ADHost = repository.ReadConfig("ad.host")
 	// cfg.ADUsername = repository.ReadConfig("ad.username")
@@ -48,7 +49,7 @@ func ZupPing(Body io.ReadCloser) (string, error) {
 }
 
 // Функция для записи массива сотрудников базу. Здесь считываем ВСЕХ user-ов из 1С:ЗУП и сравниваем их с базой - ищем и обрабатываем изменения
-func handleZupWriteAllUsers(ins *repository.Instance, data []byte) (string, error) {
+func handleZupWriteAllUsers(ins *repository.PostgreInstance, data []byte) (string, error) {
 
 	// Откроем ldap соединение:
 	if (insLdapConn == nil) || (insLdapConn.Conn.IsClosing()) {

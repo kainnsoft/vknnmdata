@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func handleEmployeeStateForCRUD(ins *repository.Instance, usr *dom.User, empl *dom.Employee) error {
+func handleEmployeeStateForCRUD(ins *repository.PostgreInstance, usr *dom.User, empl *dom.Employee) error {
 	var err error
 
 	selectedEmployeeStateCRUDStatus, err := checkEmployeeStateForCRUD(ins, empl)
@@ -40,7 +40,7 @@ func handleEmployeeStateForCRUD(ins *repository.Instance, usr *dom.User, empl *d
 	return nil
 }
 
-func checkEmployeeStateForCRUD(ins *repository.Instance, empl *dom.Employee) (int, error) {
+func checkEmployeeStateForCRUD(ins *repository.PostgreInstance, empl *dom.Employee) (int, error) {
 	gottenEmplState, err := ins.SelectEmployeeStateByEmplGUID(empl.EmployeeGUID)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
@@ -67,7 +67,7 @@ func checkEmployeeStateForCRUD(ins *repository.Instance, empl *dom.Employee) (in
 }
 
 // добавим состояние одного сотрудника:
-func addEmployeeState(ins *repository.Instance, empl *dom.Employee) (string, error) {
+func addEmployeeState(ins *repository.PostgreInstance, empl *dom.Employee) (string, error) {
 	str, err := ins.AddEmployeeStateToDB(empl)
 	if err != nil {
 		return str, fmt.Errorf("handlers.addEmployeeState error: %v", err)
@@ -76,7 +76,7 @@ func addEmployeeState(ins *repository.Instance, empl *dom.Employee) (string, err
 }
 
 // обновим состояние одного сотрудника:
-func updateEmployeeState(ins *repository.Instance, empl *dom.Employee) (string, error) {
+func updateEmployeeState(ins *repository.PostgreInstance, empl *dom.Employee) (string, error) {
 	str, err := ins.UpdateEmployeeStateToDB(empl)
 	if err != nil {
 		return str, fmt.Errorf("handlers.updateEmployeeState error: %v", err)
